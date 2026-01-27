@@ -37,11 +37,13 @@
             'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
             'glow': '0 0 15px rgba(216, 30, 5, 0.15)',
             'input': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+            'neon': '0 0 10px rgba(216, 30, 5, 0.4), 0 0 20px rgba(216, 30, 5, 0.2)',
           },
           animation: {
             'fade-in': 'fadeIn 0.2s ease-out forwards',
             'scale-in': 'scaleIn 0.2s ease-out forwards',
             'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
           },
           keyframes: {
             fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
@@ -110,6 +112,39 @@
     .form-card.inactive .form-summary { display: flex; }
     .form-card.active .form-summary { display: none; }
     
+    /* Shelf Card (Prateleira Futurista) */
+    .shelf-card {
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+      transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      position: relative;
+      overflow: hidden;
+    }
+    .shelf-card::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%; width: 50%; height: 100%;
+      background: linear-gradient(to right, transparent, rgba(255,255,255,0.8), transparent);
+      transform: skewX(-25deg);
+      transition: 0.5s;
+      pointer-events: none;
+    }
+    .shelf-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 0 15px rgba(216, 30, 5, 0.1);
+      border-color: rgba(216, 30, 5, 0.3);
+      z-index: 10;
+    }
+    .shelf-card:hover::after { left: 150%; transition: 0.7s; }
+    
+    .shelf-card.selected {
+      border-color: #D81E05;
+      background-color: #FEF2F2;
+      box-shadow: 0 0 0 2px #D81E05, 0 10px 20px rgba(216, 30, 5, 0.15);
+    }
+    .shelf-card.selected .check-icon { opacity: 1; transform: scale(1); }
+    
     /* Inputs Customizados */
     .input-field:focus {
       background-color: #ffffff; border-color: #D81E05;
@@ -136,7 +171,10 @@
 
     /* --- REGRAS DE IMPRESSÃO (CTRL+P) --- */
     @media print {
-      @page { margin: 0; size: A4 portrait; }
+      @page { 
+        margin: 0; 
+        size: A4 portrait; 
+      }
       
       body {
         background-color: white !important; margin: 0 !important;
@@ -144,7 +182,7 @@
       }
       
       /* Esconder elementos da UI na impressão */
-      nav, aside, .preview-header, #btn-add-card-manual, #interactive-preview-wrapper, #confirmation-modal, #preview-controls { 
+      nav, aside, .preview-header, #btn-add-card-manual, #interactive-preview-wrapper, #confirmation-modal, #preview-controls, #new-employee-modal { 
         display: none !important; 
       }
       
@@ -159,23 +197,36 @@
       
       /* Definição da Página A4 */
       .print-page {
-        width: 210mm; height: 296mm; 
-        page-break-after: always; page-break-inside: avoid;
-        display: flex; flex-direction: column; justify-content: space-evenly; align-items: center;
+        width: 210mm; 
+        height: 296mm; 
+        page-break-after: always; 
+        page-break-inside: avoid;
+        display: flex; 
+        flex-direction: column; 
+        justify-content: center; /* Centraliza verticalmente */
+        align-items: center;
+        gap: 10mm; /* Espaço entre as linhas de cartões */
         overflow: hidden;
       }
       .print-page:last-child { page-break-after: auto; }
 
       /* Linha de Cartões (Frente + Verso) */
       .print-row {
-        display: flex; flex-direction: row; gap: 2mm;
-        transform: scale(0.92); transform-origin: center; page-break-inside: avoid;
+        display: flex; 
+        flex-direction: row; 
+        gap: 4mm; /* Espaço entre frente e verso */
+        /* Escala reduzida para garantir que 2 etiquetas (146mm * 2 = 292mm) caibam no A4 (297mm) com margens */
+        transform: scale(0.85); 
+        transform-origin: center; 
+        page-break-inside: avoid;
       }
 
       /* Ajustes do Cartão na Impressão */
       .loto-card {
-        box-shadow: none !important; border: 1px dashed #9ca3af !important;
-        print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important;
+        box-shadow: none !important; 
+        border: 1px dashed #9ca3af !important;
+        print-color-adjust: exact !important; 
+        -webkit-print-color-adjust: exact !important;
       }
     }
   </style>
@@ -191,64 +242,95 @@
     
     <!-- Botões de Menu -->
     <div class="flex flex-col gap-6 w-full px-3">
-      <!-- Botão Cartões -->
-      <button id="nav-card" class="group flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-300 relative text-white">
+      <!-- Botão Equipe (Agora o Principal) -->
+      <button id="nav-employees" class="group flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-300 relative text-white">
         <div class="p-2.5 rounded-xl bg-white/10 shadow-inner group-hover:bg-loto-red group-hover:shadow-glow transition-all duration-300">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         </div>
-        <span class="text-[9px] font-bold tracking-widest uppercase opacity-90">Cartões</span>
+        <span class="text-[9px] font-bold tracking-widest uppercase">Prateleira</span>
         <div class="active-indicator absolute -right-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-loto-red rounded-l-full shadow-[0_0_10px_#D81E05]"></div>
       </button>
-      
-      <!-- Botão Equipe -->
-      <button id="nav-employees" class="group flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-300 relative text-slate-500 hover:text-white">
-        <div class="p-2.5 rounded-xl bg-transparent group-hover:bg-white/10 transition-all duration-300">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+
+      <!-- Botão Cartões (Fila de Impressão) -->
+      <button id="nav-card" class="group flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-300 relative text-slate-500 hover:text-white">
+        <div class="p-2.5 rounded-xl bg-transparent group-hover:bg-white/10 transition-all duration-300 relative">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+          <!-- Badge de Contagem -->
+          <span id="queue-count-badge" class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-loto-red text-[9px] font-bold text-white opacity-0 transition-opacity">0</span>
         </div>
-        <span class="text-[9px] font-bold tracking-widest uppercase">Equipe</span>
+        <span class="text-[9px] font-bold tracking-widest uppercase opacity-90">Fila</span>
         <div class="active-indicator absolute -right-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-loto-red rounded-l-full shadow-[0_0_10px_#D81E05] hidden"></div>
       </button>
     </div>
   </nav>
 
   <!-- 2. PAINEL ESQUERDO: EDITOR E LISTA -->
-  <aside class="w-full md:w-[420px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)] h-full">
+  <aside class="w-full md:w-[480px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)] h-full">
     <!-- Cabeçalho do Painel -->
-    <div class="px-6 py-8 border-b border-slate-100 bg-white flex flex-col gap-1">
-      <div class="flex items-center gap-2 mb-1">
-        <span class="bg-red-50 text-loto-red text-[10px] font-bold px-2 py-0.5 rounded border border-red-100 uppercase tracking-wide">Modo Editor</span>
+    <div class="px-6 py-8 border-b border-slate-100 bg-white flex flex-col gap-1 relative overflow-hidden">
+      <!-- Background sutil -->
+      <div class="absolute top-0 right-0 p-4 opacity-5">
+         <svg width="100" height="100" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
       </div>
-      <h1 id="panel-title" class="text-2xl font-bold text-slate-900 tracking-tight">Fila de Impressão</h1>
-      <p id="panel-desc" class="text-sm text-slate-500 font-medium">Gerencie os dados dos colaboradores.</p>
+      
+      <div class="flex items-center gap-2 mb-1 z-10">
+        <span id="panel-tag" class="bg-indigo-50 text-indigo-600 text-[10px] font-bold px-2 py-0.5 rounded border border-indigo-100 uppercase tracking-wide">Biblioteca</span>
+      </div>
+      <h1 id="panel-title" class="text-2xl font-bold text-slate-900 tracking-tight z-10">Colaboradores</h1>
+      <p id="panel-desc" class="text-sm text-slate-500 font-medium z-10">Selecione para adicionar à fila de impressão.</p>
     </div>
 
     <!-- Conteúdo Rolável (Abas) -->
-    <div class="flex-1 overflow-y-auto p-6 custom-scroll relative bg-slate-50">
+    <div class="flex-1 overflow-y-auto custom-scroll relative bg-slate-50">
       
-      <!-- ABA 1: GERADOR (CARDS) -->
-      <div id="tab-generator" class="animate-in fade-in slide-in-from-left-4 duration-300 pb-20">
-        <div id="cards-container" class="space-y-4">
-          <!-- Os formulários dos cartões são injetados aqui via JS -->
-        </div>
+      <!-- ABA 1: PRATELEIRA (EQUIPE) - AGORA A PRINCIPAL -->
+      <div id="tab-employees" class="animate-in fade-in slide-in-from-bottom-4 duration-300 p-6 min-h-full">
         
-        <!-- Botão Adicionar Novo -->
-        <button id="btn-add-card-manual" class="group w-full mt-6 py-5 border-2 border-dashed border-slate-300 rounded-2xl text-slate-400 font-semibold hover:border-loto-red hover:text-loto-red hover:bg-white transition-all duration-300 flex flex-col items-center justify-center gap-2 text-sm shadow-sm hover:shadow-md relative overflow-hidden">
-            <div class="bg-slate-100 group-hover:bg-red-50 rounded-full p-2 transition-colors z-10">
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <div class="flex justify-between items-center mb-6">
+          <div class="flex items-center gap-2">
+             <div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+             <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Disponíveis</span>
+          </div>
+          <span id="employee-count" class="text-[10px] bg-slate-200 text-slate-600 px-2.5 py-1 rounded-full font-bold">0</span>
+        </div>
+
+        <!-- Botão Novo Cadastro (Chamada Grande) -->
+        <button onclick="window.openNewEmployeeModal()" class="w-full mb-6 group relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-0.5 shadow-lg transition-all hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0">
+            <div class="relative flex items-center justify-between rounded-xl bg-slate-900 px-5 py-4 transition-all group-hover:bg-opacity-90">
+                <div class="flex items-center gap-3">
+                    <div class="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500 group-hover:text-white transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                    </div>
+                    <div class="text-left">
+                        <p class="text-sm font-bold text-white">Novo Colaborador</p>
+                        <p class="text-[10px] text-slate-400">Cadastrar na prateleira</p>
+                    </div>
+                </div>
+                <svg class="text-slate-500 transition-transform group-hover:translate-x-1 group-hover:text-white" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
             </div>
-            <span class="z-10">Adicionar Novo Cartão</span>
-            <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
         </button>
+
+        <!-- GRID DA PRATELEIRA -->
+        <div id="employees-grid" class="grid grid-cols-2 gap-3 pb-20">
+            <!-- Cards injetados via JS -->
+        </div>
       </div>
 
-      <!-- ABA 2: BIBLIOTECA (EQUIPE) -->
-      <div id="tab-employees" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-300 p-1">
-        <div class="flex justify-between items-center mb-4 px-1">
-          <h2 class="font-bold text-slate-800 text-sm tracking-wide">BIBLIOTECA DE EQUIPE</h2>
-          <span id="employee-count" class="text-[10px] bg-slate-900 text-white px-2 py-0.5 rounded-full font-bold">0</span>
+      <!-- ABA 2: FILA DE IMPRESSÃO (CARDS) -->
+      <div id="tab-generator" class="hidden animate-in fade-in slide-in-from-left-4 duration-300 p-6">
+        <div class="flex items-center justify-between mb-4">
+             <h2 class="font-bold text-slate-800 text-sm tracking-wide">ITENS SELECIONADOS</h2>
+             <button id="btn-clear-queue" class="text-[10px] text-red-500 font-bold hover:underline">Limpar Fila</button>
         </div>
-        <div id="employees-list" class="space-y-3 pb-20">
-            <!-- Lista de funcionários salvos injetada aqui -->
+        <div id="cards-container" class="space-y-4 pb-20">
+          <!-- Os formulários dos cartões são injetados aqui via JS -->
+          <div id="empty-queue-msg" class="text-center py-12 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl">
+              <div class="bg-slate-50 p-3 rounded-full mb-3 text-slate-300">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+              </div>
+              <p class="text-sm text-slate-500 font-medium">Fila vazia</p>
+              <p class="text-xs text-slate-400 mt-1">Selecione na prateleira.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -256,30 +338,19 @@
     <!-- Rodapé com Ações -->
     <div class="p-5 border-t border-slate-200 bg-white z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
       
-      <!-- Ações do Gerador -->
-      <div id="actions-generator" class="flex flex-col gap-3">
-        <button type="button" id="btn-save-current" class="w-full bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 text-sm group">
-          <svg class="text-slate-400 group-hover:text-emerald-500 transition-colors" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          Salvar na Biblioteca
+      <!-- Ações da Fila (Apenas Imprimir) -->
+      <div id="actions-generator" class="hidden flex-col gap-3">
+        <button type="button" id="btn-print" class="w-full bg-loto-red text-white font-bold py-3 px-4 rounded-xl hover:bg-loto-darkRed hover:shadow-glow hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2.5 group">
+            <svg class="text-white/70 group-hover:text-white transition-colors" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            IMPRIMIR FILA (<span id="print-count-display">0</span>)
         </button>
-        
-        <div class="grid grid-cols-4 gap-3">
-          <button type="button" id="btn-reset" class="col-span-1 bg-white text-slate-400 border border-slate-200 font-semibold py-3 rounded-xl hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all flex items-center justify-center shadow-sm" title="Limpar Tudo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-          </button>
-          
-          <button type="button" id="btn-print" class="col-span-3 bg-slate-900 text-white font-bold py-3 px-4 rounded-xl hover:bg-loto-black hover:shadow-lg hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2.5 group">
-            <svg class="text-slate-400 group-hover:text-white transition-colors" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-            IMPRIMIR LOTE
-          </button>
-        </div>
       </div>
       
-      <!-- Ações da Biblioteca -->
-      <div id="actions-list" class="hidden">
-        <button type="button" onclick="window.switchToCardEditor()" class="w-full bg-loto-red text-white font-bold py-3.5 px-4 rounded-xl hover:bg-loto-darkRed transition flex items-center justify-center gap-2 shadow-lg shadow-red-500/20">
-           + Criar Novo Cartão
-        </button>
+      <!-- Ações da Prateleira (Informativo) -->
+      <div id="actions-list" class="flex flex-col gap-2">
+         <div class="text-center text-xs text-slate-400 font-medium">
+             Selecione os cards acima para imprimir
+         </div>
       </div>
     </div>
   </aside>
@@ -401,7 +472,79 @@
   <!-- ÁREA DE RENDERIZAÇÃO DE IMPRESSÃO (Oculta na tela) -->
   <div id="print-batch-area" class="hidden"></div>
 
-  <!-- MODAL DE CONFIRMAÇÃO -->
+  <!-- MODAL DE NOVO COLABORADOR -->
+  <div id="new-employee-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity opacity-0 animate-fade-in" onclick="window.closeNewEmployeeModal()"></div>
+    <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
+      <div class="flex min-h-full items-center justify-center p-4">
+        <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-md scale-95 opacity-0 animate-scale-in">
+          
+          <div class="bg-slate-900 px-4 py-4 sm:px-6 flex items-center justify-between">
+             <h3 class="text-base font-semibold leading-6 text-white flex items-center gap-2">
+                <div class="bg-indigo-500/20 p-1.5 rounded-lg">
+                    <svg class="text-indigo-400" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                </div>
+                Adicionar à Prateleira
+             </h3>
+             <button onclick="window.closeNewEmployeeModal()" class="text-slate-400 hover:text-white transition-colors">
+                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+             </button>
+          </div>
+
+          <div class="px-6 py-6 space-y-4">
+             <!-- Upload Foto Modal -->
+             <div class="flex justify-center mb-4">
+                 <div class="relative group">
+                    <div id="modal-photo-area" class="w-24 h-24 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center overflow-hidden cursor-pointer hover:border-loto-red transition-colors" onclick="document.getElementById('modal-file-input').click()">
+                        <img id="modal-photo-preview" class="w-full h-full object-cover hidden">
+                        <div id="modal-photo-placeholder" class="text-slate-400 flex flex-col items-center">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                            <span class="text-[9px] font-bold mt-1 uppercase">Foto</span>
+                        </div>
+                    </div>
+                    <div class="absolute bottom-0 right-0 bg-slate-900 text-white p-1.5 rounded-full border-2 border-white shadow-sm cursor-pointer" onclick="document.getElementById('modal-file-input').click()">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    </div>
+                    <input type="file" id="modal-file-input" class="hidden" accept="image/*">
+                 </div>
+             </div>
+
+             <div>
+                 <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Nome Completo</label>
+                 <input type="text" id="modal-input-name" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all" placeholder="Ex: JOÃO DA SILVA">
+             </div>
+
+             <div class="grid grid-cols-2 gap-4">
+                 <div>
+                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Setor</label>
+                     <input type="text" class="w-full px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-500 select-none" value="MANUTENÇÃO" readonly>
+                 </div>
+                 <div>
+                     <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Função</label>
+                     <div class="relative">
+                        <select id="modal-input-role" class="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 appearance-none focus:outline-none focus:border-indigo-500 cursor-pointer">
+                            <option value="Mecânica">MECÂNICA</option>
+                            <option value="Soldador">SOLDADOR</option>
+                            <option value="Caldeireiro">CALDEIREIRO</option>
+                        </select>
+                        <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                        </div>
+                     </div>
+                 </div>
+             </div>
+          </div>
+
+          <div class="bg-slate-50 px-6 py-4 flex flex-row-reverse gap-3">
+            <button onclick="window.saveNewEmployee()" type="button" class="inline-flex w-full justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white shadow-sm hover:bg-slate-800 sm:w-auto transition-all transform active:scale-95">Salvar na Prateleira</button>
+            <button onclick="window.closeNewEmployeeModal()" type="button" class="inline-flex w-full justify-center rounded-xl bg-white px-5 py-3 text-sm font-bold text-slate-700 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:w-auto transition-all">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE CONFIRMAÇÃO EXCLUSÃO -->
   <div id="confirmation-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
     <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity opacity-0 animate-fade-in"></div>
     <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
@@ -415,7 +558,7 @@
               <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                 <h3 class="text-base font-semibold leading-6 text-slate-900" id="modal-title">Confirmar Exclusão</h3>
                 <div class="mt-2">
-                  <p id="modal-description" class="text-sm text-slate-500">Tem certeza que deseja excluir este cartão?</p>
+                  <p id="modal-description" class="text-sm text-slate-500">Tem certeza que deseja excluir da prateleira? Isso não pode ser desfeito.</p>
                 </div>
               </div>
             </div>
@@ -432,7 +575,7 @@
   <!-- --- LÓGICA JAVASCRIPT --- -->
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
-        // --- SELEÇÃO DE ELEMENTOS DO DOM ---
+        // --- SELEÇÃO DE ELEMENTOS ---
         const navCard = document.getElementById('nav-card');
         const navEmployees = document.getElementById('nav-employees');
         const tabGenerator = document.getElementById('tab-generator');
@@ -441,33 +584,44 @@
         const actionsList = document.getElementById('actions-list');
         const panelTitle = document.getElementById('panel-title');
         const panelDesc = document.getElementById('panel-desc');
-        const employeesList = document.getElementById('employees-list');
+        const panelTag = document.getElementById('panel-tag');
+        const employeesGrid = document.getElementById('employees-grid'); // Mudou de list para grid
         const employeeCount = document.getElementById('employee-count');
         const cardName = document.getElementById('card-name');
         const cardRole = document.getElementById('card-role');
         const cardSector = document.getElementById('card-sector');
         const cardPhoto = document.getElementById('card-photo');
         const cardPhotoPlaceholder = document.getElementById('card-photo-placeholder');
-        const btnReset = document.getElementById('btn-reset');
-        const btnSaveCurrent = document.getElementById('btn-save-current');
         const btnPrint = document.getElementById('btn-print');
         const printBatchArea = document.getElementById('print-batch-area');
         const cardsContainer = document.getElementById('cards-container');
-        const btnAddCardManual = document.getElementById('btn-add-card-manual');
+        const btnClearQueue = document.getElementById('btn-clear-queue');
+        const emptyQueueMsg = document.getElementById('empty-queue-msg');
+        const queueCountBadge = document.getElementById('queue-count-badge');
+        const printCountDisplay = document.getElementById('print-count-display');
+        
+        // Modal Confirmação
         const modal = document.getElementById('confirmation-modal');
         const modalTitle = document.getElementById('modal-title');
         const modalDesc = document.getElementById('modal-description');
         const modalConfirmBtn = document.getElementById('modal-confirm-btn');
         const modalCancelBtn = document.getElementById('modal-cancel-btn');
-        const previewLogoContainer = document.getElementById('preview-logo-container');
         
-        // ELEMENTOS PARA ZOOM/PAN
+        // Modal Novo Colaborador
+        const newEmployeeModal = document.getElementById('new-employee-modal');
+        const modalInputName = document.getElementById('modal-input-name');
+        const modalInputRole = document.getElementById('modal-input-role');
+        const modalPhotoPreview = document.getElementById('modal-photo-preview');
+        const modalPhotoPlaceholder = document.getElementById('modal-photo-placeholder');
+        const modalFileInput = document.getElementById('modal-file-input');
+        
+        // Preview
+        const previewLogoContainer = document.getElementById('preview-logo-container');
         const previewViewport = document.getElementById('preview-viewport');
         const interactivePreviewWrapper = document.getElementById('interactive-preview-wrapper');
         const btnResetView = document.getElementById('btn-reset-view');
 
-        // --- CLONE DA LOGO LDC (VETORIAL - REDUZIDA) ---
-        // Reduzi o tamanho das fontes e bolinha para atender ao pedido
+        // --- TEMPLATE LOGO LDC ---
         const LDC_LOGO_TEMPLATE = `
         <div style="display: flex; flex-direction: column; align-items: flex-start; transform-origin: bottom right;">
             <div style="display: flex; align-items: baseline; line-height: 0.8;">
@@ -477,349 +631,372 @@
             <span style="font-family: 'Inter', Arial, sans-serif; font-size: 5px; color: #55a536; font-weight: 600; letter-spacing: 0px; white-space: nowrap; margin-top: 2px; display: block;">Louis Dreyfus Company</span>
         </div>
         `;
-
-        // Renderiza a logo no Preview imediatamente
         if (previewLogoContainer) previewLogoContainer.innerHTML = LDC_LOGO_TEMPLATE;
 
-        // --- LÓGICA DE PAN E ZOOM (IMERSÃO) ---
-        let scale = 1;
-        let panning = false;
-        let pointX = 0;
-        let pointY = 0;
-        let startX = 0;
-        let startY = 0;
-
-        function updateTransform() {
-            interactivePreviewWrapper.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
-        }
-
-        previewViewport.addEventListener('mousedown', (e) => {
-            // Evita panning se clicar no reset button
-            if (e.target.closest('#btn-reset-view')) return;
-            
-            e.preventDefault();
-            startX = e.clientX - pointX;
-            startY = e.clientY - pointY;
-            panning = true;
-            previewViewport.classList.add('cursor-grabbing');
-            previewViewport.classList.remove('cursor-grab');
-        });
-
-        previewViewport.addEventListener('mouseup', () => {
-            panning = false;
-            previewViewport.classList.remove('cursor-grabbing');
-            previewViewport.classList.add('cursor-grab');
-        });
-
-        previewViewport.addEventListener('mouseleave', () => {
-            panning = false;
-            previewViewport.classList.remove('cursor-grabbing');
-            previewViewport.classList.add('cursor-grab');
-        });
-
-        previewViewport.addEventListener('mousemove', (e) => {
-            if (!panning) return;
-            e.preventDefault();
-            pointX = e.clientX - startX;
-            pointY = e.clientY - startY;
-            updateTransform();
-        });
-
-        previewViewport.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const xs = (e.clientX - pointX) / scale;
-            const ys = (e.clientY - pointY) / scale;
-            const delta = -Math.sign(e.deltaY);
-            // Zoom suave, limitando entre 0.5x e 3x
-            const newScale = Math.min(Math.max(0.5, scale + delta * 0.1), 3);
-            scale = newScale;
-            updateTransform();
-        });
-
-        btnResetView.addEventListener('click', () => {
-            scale = 1;
-            pointX = 0;
-            pointY = 0;
-            updateTransform();
-        });
-
+        // --- ZOOM & PAN LOGIC ---
+        let scale = 1, panning = false, pointX = 0, pointY = 0, startX = 0, startY = 0;
+        function updateTransform() { interactivePreviewWrapper.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`; }
+        previewViewport.addEventListener('mousedown', (e) => { if(e.target.closest('#btn-reset-view')) return; e.preventDefault(); startX = e.clientX - pointX; startY = e.clientY - pointY; panning = true; previewViewport.classList.add('cursor-grabbing'); previewViewport.classList.remove('cursor-grab'); });
+        previewViewport.addEventListener('mouseup', () => { panning = false; previewViewport.classList.remove('cursor-grabbing'); previewViewport.classList.add('cursor-grab'); });
+        previewViewport.addEventListener('mouseleave', () => { panning = false; previewViewport.classList.remove('cursor-grabbing'); previewViewport.classList.add('cursor-grab'); });
+        previewViewport.addEventListener('mousemove', (e) => { if(!panning) return; e.preventDefault(); pointX = e.clientX - startX; pointY = e.clientY - startY; updateTransform(); });
+        previewViewport.addEventListener('wheel', (e) => { e.preventDefault(); const delta = -Math.sign(e.deltaY); scale = Math.min(Math.max(0.5, scale + delta * 0.1), 3); updateTransform(); });
+        btnResetView.addEventListener('click', () => { scale = 1; pointX = 0; pointY = 0; updateTransform(); });
 
         // --- ESTADO DA APLICAÇÃO ---
+        let employees = []; // Lista principal (A Prateleira)
+        let queue = []; // IDs dos colaboradores selecionados para impressão
         let currentModalCallback = null;
-        let employees = []; // Banco de dados local de funcionários
-        let cards = []; // Lista de cartões na fila de impressão
-        let nextCardId = 1;
-        let activeCardId = null;
+        let tempPhotoData = null; // Para o modal de novo colaborador
 
-        // Carregar dados salvos
-        try {
-            const stored = localStorage.getItem('lotoEmployees');
-            if (stored) employees = JSON.parse(stored);
-        } catch (e) { console.warn(e); }
+        // Carregar dados
+        try { const stored = localStorage.getItem('lotoEmployees'); if (stored) employees = JSON.parse(stored); } catch (e) { console.warn(e); }
 
-        // --- SISTEMA DE MODAL ---
+        // --- MODAIS ---
         function openModal(title, desc, callback) {
-            modalTitle.textContent = title;
-            modalDesc.textContent = desc;
-            currentModalCallback = callback;
-            modal.classList.remove('hidden');
+            modalTitle.textContent = title; modalDesc.textContent = desc; currentModalCallback = callback; modal.classList.remove('hidden');
         }
-
-        function closeModal() {
-            modal.classList.add('hidden');
-            currentModalCallback = null;
-        }
-
-        modalConfirmBtn.addEventListener('click', () => {
-            if (currentModalCallback) currentModalCallback();
-            closeModal();
-        });
-
+        function closeModal() { modal.classList.add('hidden'); currentModalCallback = null; }
+        modalConfirmBtn.addEventListener('click', () => { if (currentModalCallback) currentModalCallback(); closeModal(); });
         modalCancelBtn.addEventListener('click', closeModal);
-        modal.addEventListener('click', (e) => {
-            if (e.target.id === 'confirmation-modal' || e.target.classList.contains('backdrop-blur-sm')) closeModal();
+
+        // Modal Novo Colaborador
+        window.openNewEmployeeModal = () => {
+            modalInputName.value = '';
+            modalInputRole.value = 'Mecânica';
+            tempPhotoData = null;
+            modalPhotoPreview.src = '';
+            modalPhotoPreview.classList.add('hidden');
+            modalPhotoPlaceholder.classList.remove('hidden');
+            newEmployeeModal.classList.remove('hidden');
+        };
+        window.closeNewEmployeeModal = () => newEmployeeModal.classList.add('hidden');
+        
+        modalFileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    tempPhotoData = ev.target.result;
+                    modalPhotoPreview.src = tempPhotoData;
+                    modalPhotoPreview.classList.remove('hidden');
+                    modalPhotoPlaceholder.classList.add('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
         });
 
-        // --- GERENCIAMENTO DE CARTÕES ---
-        function createCard(initialData = null) {
-            const id = nextCardId++;
-            let cardData;
+        window.saveNewEmployee = () => {
+            const name = modalInputName.value.trim();
+            if(!name) { alert('Digite o nome do colaborador.'); return; }
             
-            // Definição de valores padrão e restrições
-            if (initialData) {
-                let role = initialData.role;
-                // Força as opções de cargo permitidas
-                if (!['Mecânica', 'Soldador', 'Caldeireiro'].includes(role)) {
-                    role = 'Mecânica';
-                }
-                cardData = { ...initialData, id: id, sector: 'Manutenção', role: role };
-            } else {
-                cardData = { id: id, name: '', role: 'Mecânica', sector: 'Manutenção', photo: null };
-            }
-            
-            cards.push(cardData);
-            const cardEl = renderCardElement(cardData);
-            cardsContainer.appendChild(cardEl);
-            activateCard(id);
-            setTimeout(() => cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-        }
-
-        function renderCardElement(data) {
-            const div = document.createElement('div');
-            // Animação de entrada
-            div.className = 'form-card bg-white rounded-xl border border-slate-200 overflow-hidden mb-3 animate-slide-up';
-            div.id = `form-card-${data.id}`;
-            div.dataset.id = data.id;
-
-            // HTML do HUD (Painel de Edição)
-            div.innerHTML = `
-                <!-- CABEÇALHO (VISÍVEL QUANDO COLAPSADO) -->
-                <div class="card-header p-4 bg-white flex items-center justify-between cursor-pointer group">
-                    <div class="flex items-center gap-4">
-                         <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center border border-slate-200 shadow-sm card-num transition-colors group-hover:bg-slate-200 group-hover:text-slate-700">${cards.indexOf(data) + 1}</div>
-                         <div class="flex flex-col">
-                            <span class="font-bold text-sm text-slate-800 card-title-display leading-tight">${data.name || 'Novo Colaborador'}</span>
-                            <div class="form-summary flex items-center gap-2 mt-0.5">
-                                <span class="text-[10px] text-slate-400 font-medium uppercase tracking-wide truncate max-w-[150px] summary-role">${data.role || 'Mecânica'}</span>
-                            </div>
-                         </div>
-                    </div>
-                    <button class="delete-btn text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all" title="Remover">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    </button>
-                </div>
-                
-                <!-- CORPO EXPANDIDO (HUD MODERNA) -->
-                <div class="form-body p-5 bg-white border-t border-slate-100">
-                    <div class="flex flex-row gap-5">
-                        <!-- LADO ESQUERDO: UPLOAD DE FOTO -->
-                        <div class="flex-shrink-0">
-                           <div class="relative w-[88px] h-[106px] rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-red-50 hover:border-loto-red transition-all cursor-pointer photo-trigger group photo-upload-area overflow-hidden flex flex-col items-center justify-center text-center shadow-sm">
-                                <img src="${data.photo || ''}" class="w-full h-full object-cover absolute inset-0 z-10 ${data.photo ? '' : 'hidden'} photo-preview transition-opacity group-hover:opacity-80">
-                                
-                                <div class="upload-icon text-slate-400 group-hover:text-loto-red transition-colors mb-1 z-0 relative">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                                </div>
-                                <span class="text-[9px] font-bold text-slate-400 group-hover:text-loto-red uppercase leading-tight z-0 relative">Adicionar<br>Foto</span>
-                                
-                                <input type="file" class="hidden file-input" accept="image/*">
-                           </div>
-                        </div>
-
-                        <!-- LADO DIREITO: CAMPOS DE TEXTO -->
-                        <div class="flex-1 flex flex-col justify-between gap-3">
-                             <div class="input-group">
-                                 <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nome Completo</label>
-                                 <input type="text" class="input-field input-name w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-300 outline-none shadow-input" placeholder="Ex: JOÃO DA SILVA" value="${data.name}">
-                             </div>
-                             
-                             <div class="grid grid-cols-2 gap-3">
-                                <div class="input-group">
-                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Setor</label>
-                                     <div class="relative">
-                                        <input type="text" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-500 outline-none cursor-not-allowed select-none shadow-inner" value="MANUTENÇÃO" readonly>
-                                        <div class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                        </div>
-                                     </div>
-                                </div>
-                                <div class="input-group">
-                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Função</label>
-                                     <div class="relative">
-                                         <select class="input-field input-role w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer shadow-input">
-                                            <option value="Mecânica" ${data.role === 'Mecânica' ? 'selected' : ''}>MECÂNICA</option>
-                                            <option value="Soldador" ${data.role === 'Soldador' ? 'selected' : ''}>SOLDADOR</option>
-                                            <option value="Caldeireiro" ${data.role === 'Caldeireiro' ? 'selected' : ''}>CALDEIREIRO</option>
-                                         </select>
-                                         <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 bg-white pl-1">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                         </div>
-                                     </div>
-                                </div>
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            `;
-
-            // Elementos internos do card
-            const header = div.querySelector('.card-header');
-            const deleteBtn = div.querySelector('.delete-btn');
-            const inputName = div.querySelector('.input-name');
-            const inputRole = div.querySelector('.input-role');
-            const photoTrigger = div.querySelector('.photo-trigger');
-            const fileInput = div.querySelector('.file-input');
-            const photoPreview = div.querySelector('.photo-preview');
-            const titleDisplay = div.querySelector('.card-title-display');
-            const summaryRole = div.querySelector('.summary-role');
-
-            // Eventos do Card
-            header.addEventListener('click', (e) => !e.target.closest('.delete-btn') && activateCard(data.id));
-
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                openModal('Excluir Cartão?', 'Esta ação removerá este cartão da lista.', () => {
-                    const idx = cards.findIndex(c => c.id === data.id);
-                    if (idx > -1) {
-                        cards.splice(idx, 1);
-                        div.style.transition = 'all 0.3s ease'; div.style.opacity = '0'; div.style.transform = 'scale(0.9)';
-                        setTimeout(() => {
-                            div.remove();
-                            reindexCards();
-                            if (cards.length === 0) createCard();
-                            else if (activeCardId === data.id) activateCard(cards[cards.length - 1].id);
-                        }, 300);
-                    }
-                });
+            employees.push({
+                id: Date.now(), // ID único baseado em timestamp
+                name: name,
+                role: modalInputRole.value,
+                sector: 'Manutenção',
+                photo: tempPhotoData
             });
+            
+            saveEmployees();
+            renderShelf();
+            window.closeNewEmployeeModal();
+            // Scroll para o fim da lista
+            setTimeout(() => {
+                employeesGrid.lastElementChild?.scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        };
 
-            const updateData = () => {
-                const idx = cards.findIndex(c => c.id === data.id);
-                if (idx > -1) {
-                    cards[idx].name = inputName.value;
-                    cards[idx].role = inputRole.value;
-                    cards[idx].sector = 'Manutenção';
-                    titleDisplay.textContent = inputName.value || 'Novo Colaborador';
-                    summaryRole.textContent = inputRole.value;
-                    if (activeCardId === data.id) updatePreview();
-                }
-            };
-            
-            [inputName, inputRole].forEach(el => el.addEventListener('input', updateData));
-            photoTrigger.addEventListener('click', () => fileInput.click());
-            
-            // Leitura de Foto
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        const src = ev.target.result;
-                        photoPreview.src = src;
-                        photoPreview.classList.remove('hidden');
-                        const idx = cards.findIndex(c => c.id === data.id);
-                        if (idx > -1) cards[idx].photo = src;
-                        if (activeCardId === data.id) updatePreview();
-                    }
-                    reader.readAsDataURL(file);
-                }
-            });
-            return div;
+        function saveEmployees() {
+            try { localStorage.setItem('lotoEmployees', JSON.stringify(employees)); } catch(e){}
+            employeeCount.textContent = employees.length;
         }
 
-        // --- UTILITÁRIOS ---
-        function reindexCards() {
-            document.querySelectorAll('.card-num').forEach((el, i) => el.textContent = i + 1);
-        }
-
-        function activateCard(id) {
-            activeCardId = id;
-            document.querySelectorAll('.form-card').forEach(el => {
-                const isTarget = parseInt(el.dataset.id) === id;
-                if (isTarget) {
-                    el.classList.add('active');
-                    el.classList.remove('inactive');
-                } else {
-                    el.classList.remove('active');
-                    el.classList.add('inactive');
-                }
-            });
-            updatePreview();
-        }
-
-        function updatePreview() {
-            const cardData = cards.find(c => c.id === activeCardId);
-            if (!cardData) return;
-            
-            const setText = (el, val, def) => el.textContent = val ? val.trim() : def;
-            setText(cardName, cardData.name, 'NOME DO FUNCIONÁRIO');
-            setText(cardRole, cardData.role, 'FUNÇÃO');
-            setText(cardSector, cardData.sector, 'DEPARTAMENTO');
-            
-            if (cardData.photo) {
-                cardPhoto.src = cardData.photo;
-                cardPhoto.classList.remove('hidden');
-                cardPhotoPlaceholder.classList.add('hidden');
-            } else {
-                cardPhoto.src = '';
-                cardPhoto.classList.add('hidden');
-                cardPhotoPlaceholder.classList.remove('hidden');
-            }
-        }
-
-        // --- BOTÕES GERAIS ---
-        btnAddCardManual.addEventListener('click', () => createCard());
-
-        btnSaveCurrent.addEventListener('click', () => {
-            const cardData = cards.find(c => c.id === activeCardId);
-            if (!cardData || !cardData.name) {
-                alert('Preencha pelo menos o nome para salvar.');
+        // --- PRATELEIRA (SHELF) LÓGICA ---
+        function renderShelf() {
+            employeesGrid.innerHTML = '';
+            if(employees.length === 0) {
+                employeesGrid.innerHTML = `<div class="col-span-2 text-center py-8 text-slate-400 text-sm">Prateleira vazia. Adicione colaboradores.</div>`;
                 return;
             }
-            employees.push({ ...cardData });
-            try { localStorage.setItem('lotoEmployees', JSON.stringify(employees)); } catch(e){}
-            const originalHTML = btnSaveCurrent.innerHTML;
-            btnSaveCurrent.innerHTML = `<span class="text-emerald-600 font-bold flex items-center gap-2">Salvo!</span>`;
-            setTimeout(() => { btnSaveCurrent.innerHTML = originalHTML; renderEmployees(); }, 1000);
+
+            employees.forEach(emp => {
+                const isSelected = queue.includes(emp.id);
+                const card = document.createElement('div');
+                // Estilo "Futurista/Glass"
+                card.className = `shelf-card rounded-xl p-3 cursor-pointer group select-none flex items-center gap-3 ${isSelected ? 'selected' : ''}`;
+                card.onclick = (e) => {
+                    // Se clicar no botão de excluir, não seleciona
+                    if(e.target.closest('.delete-btn')) return;
+                    toggleQueue(emp.id);
+                };
+
+                const imgHtml = emp.photo 
+                    ? `<img src="${emp.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-200 group-hover:border-loto-red transition-colors">` 
+                    : `<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400 border border-slate-200 group-hover:border-loto-red transition-colors">IMG</div>`;
+
+                card.innerHTML = `
+                    <div class="relative">
+                        ${imgHtml}
+                        <div class="check-icon absolute -top-1 -right-1 bg-loto-red text-white rounded-full p-0.5 opacity-0 transform scale-50 transition-all duration-300 shadow-sm border border-white">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-bold text-slate-800 truncate group-hover:text-loto-red transition-colors">${emp.name}</p>
+                        <p class="text-[10px] text-slate-500 truncate">${emp.role}</p>
+                    </div>
+                    <button class="delete-btn opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all" onclick="window.deleteEmployee(${emp.id})">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                `;
+                employeesGrid.appendChild(card);
+            });
+            employeeCount.textContent = employees.length;
+        }
+
+        window.deleteEmployee = (id) => {
+            openModal('Remover da Prateleira?', 'Isso apagará o colaborador permanentemente.', () => {
+                employees = employees.filter(e => e.id !== id);
+                queue = queue.filter(qId => qId !== id); // Remove da fila se estiver lá
+                saveEmployees();
+                renderShelf();
+                renderQueue(); // Atualiza a fila visualmente
+            });
+        };
+
+        // --- FILA DE IMPRESSÃO LÓGICA ---
+        function toggleQueue(id) {
+            if(queue.includes(id)) {
+                queue = queue.filter(qId => qId !== id);
+            } else {
+                queue.push(id);
+                // Ativar visualização do último adicionado
+                updatePreview(id);
+            }
+            renderShelf(); // Atualiza visual de seleção
+            renderQueue(); // Atualiza a lista da aba 2
+            updateQueueCounts();
+        }
+
+        // Nova função dedicada para remover apenas da fila
+        window.removeFromQueue = (id, event) => {
+            if(event) event.stopPropagation();
+            queue = queue.filter(qId => qId !== id);
+            renderShelf();
+            renderQueue();
+            updateQueueCounts();
+        };
+
+        let expandedQueueIds = new Set();
+        
+        window.toggleQueueExpansion = (id, event) => {
+            if(event) event.stopPropagation();
+            if(expandedQueueIds.has(id)) {
+                expandedQueueIds.delete(id);
+            } else {
+                expandedQueueIds.add(id);
+            }
+            renderQueue();
+        };
+
+        function renderQueue() {
+            cardsContainer.innerHTML = '';
+            if(queue.length === 0) {
+                emptyQueueMsg.classList.remove('hidden');
+                updatePreview(null);
+                return;
+            }
+            emptyQueueMsg.classList.add('hidden');
+
+            queue.forEach((id, index) => {
+                const emp = employees.find(e => e.id === id);
+                if(!emp) return;
+
+                const isExpanded = expandedQueueIds.has(id);
+                
+                const div = document.createElement('div');
+                div.className = `group relative bg-white rounded-xl border transition-all duration-300 overflow-hidden cursor-pointer ${isExpanded ? 'border-loto-red ring-1 ring-loto-red' : 'border-slate-200 hover:border-loto-red/50'}`;
+                
+                div.onclick = () => updatePreview(id);
+                
+                // Cabeçalho do Item da Fila
+                const headerHtml = `
+                    <div class="flex items-center justify-between p-3 bg-slate-50 border-b border-slate-100">
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 rounded-full bg-loto-red text-white text-[10px] font-bold flex items-center justify-center shadow-sm shadow-red-200">
+                                ${index + 1}
+                            </div>
+                            <div class="flex flex-col">
+                                <span class="text-xs font-bold text-slate-800 leading-tight">${emp.name}</span>
+                                <span class="text-[10px] text-slate-500 leading-tight">${emp.role}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-1">
+                             <button class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors" onclick="window.toggleQueueExpansion(${id}, event)" title="${isExpanded ? 'Recolher' : 'Expandir'}">
+                                ${isExpanded ? 
+                                    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>' : 
+                                    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>'}
+                             </button>
+                             <button class="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" onclick="window.removeFromQueue(${id}, event)" title="Remover da Fila">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                             </button>
+                        </div>
+                    </div>
+                `;
+                
+                // Corpo Expansível (Miniatura do Cartão)
+                let bodyHtml = '';
+                if(isExpanded) {
+                    const photoSrc = emp.photo || '';
+                    const photoDisplay = photoSrc 
+                        ? `<img src="${photoSrc}" class="w-full h-full object-cover">` 
+                        : `<div class="w-full h-full bg-slate-100 flex items-center justify-center text-[8px] text-slate-400 font-bold text-center p-1">FOTO</div>`;
+
+                    bodyHtml = `
+                    <div class="p-4 bg-slate-100 flex justify-center animate-slide-up">
+                        <!-- Miniatura Visual do Cartão -->
+                        <div class="w-[140px] bg-loto-red rounded-lg shadow-lg overflow-hidden flex flex-col relative" style="aspect-ratio: 76/146;">
+                             <div class="h-2 w-full"></div>
+                             <div class="bg-loto-black p-1 mb-1">
+                                 <div class="border border-white rounded-full bg-loto-red flex items-center justify-center">
+                                     <span class="text-white text-[8px] font-black uppercase tracking-wider py-0.5">PERIGO</span>
+                                 </div>
+                             </div>
+                             <div class="bg-white flex-1 mx-1 mb-1 p-1 flex flex-col gap-1">
+                                 <div class="border border-black p-0.5 text-center"><span class="text-[8px] font-bold uppercase block leading-none">NÃO LIGUE</span></div>
+                                 <div class="flex gap-1 h-12">
+                                     <div class="w-1/2 border border-black p-0.5 flex items-center"><span class="text-[5px] font-bold leading-tight">ESTOU TRABALHANDO...</span></div>
+                                     <div class="w-1/2 border border-black relative overflow-hidden flex items-center justify-center">${photoDisplay}</div>
+                                 </div>
+                                 <div class="border border-black flex-1 p-1 flex flex-col gap-1 text-center relative">
+                                     <span class="text-[6px] font-bold block bg-slate-50 py-0.5 border-b border-slate-100">${emp.name}</span>
+                                     <span class="text-[6px] font-bold block bg-slate-50 py-0.5 border-b border-slate-100">${emp.sector}</span>
+                                     <span class="text-[6px] font-bold block bg-slate-50 py-0.5 border-b border-slate-100">${emp.role}</span>
+                                     <!-- Tiny Logo -->
+                                     <div class="absolute bottom-0 right-0 opacity-80 scale-50 origin-bottom-right">
+                                        <div style="display:flex;flex-direction:column;align-items:flex-start;">
+                                            <span style="font-family:serif;font-size:10px;color:#315575;">LDC</span>
+                                        </div>
+                                     </div>
+                                 </div>
+                             </div>
+                        </div>
+                    </div>
+                    `;
+                }
+
+                div.innerHTML = headerHtml + bodyHtml;
+                cardsContainer.appendChild(div);
+            });
+        }
+
+        function updateQueueCounts() {
+            const count = queue.length;
+            queueCountBadge.textContent = count;
+            queueCountBadge.style.opacity = count > 0 ? '1' : '0';
+            printCountDisplay.textContent = count;
+        }
+
+        btnClearQueue.addEventListener('click', () => {
+            if(queue.length === 0) return;
+            openModal('Limpar Fila?', 'Isso removerá todos os itens selecionados para impressão.', () => {
+                queue = [];
+                renderShelf();
+                renderQueue();
+                updateQueueCounts();
+            });
         });
 
-        // --- LÓGICA DE IMPRESSÃO (BATCH) ---
-        function generatePrintBatch() {
-            const printArea = document.getElementById('print-batch-area');
-            printArea.innerHTML = ''; 
-            const toPrint = cards.filter(c => c.name || c.role || c.photo);
-            // Garante que pelo menos o cartão atual seja impresso mesmo vazio
-            if(toPrint.length === 0 && cards.length > 0) toPrint.push(cards[0]);
+        // --- PREVIEW ---
+        function updatePreview(id) {
+            if (!id) {
+                // Estado vazio
+                cardName.textContent = 'NOME DO FUNCIONÁRIO';
+                cardRole.textContent = 'FUNÇÃO';
+                cardSector.textContent = 'DEPARTAMENTO';
+                cardPhoto.classList.add('hidden');
+                cardPhotoPlaceholder.classList.remove('hidden');
+                return;
+            }
 
-            // Agrupa em pares para impressão (lado a lado na folha A4)
+            const emp = employees.find(e => e.id === id);
+            if(emp) {
+                cardName.textContent = emp.name.toUpperCase();
+                cardRole.textContent = emp.role.toUpperCase();
+                cardSector.textContent = emp.sector.toUpperCase();
+                if(emp.photo) {
+                    cardPhoto.src = emp.photo;
+                    cardPhoto.classList.remove('hidden');
+                    cardPhotoPlaceholder.classList.add('hidden');
+                } else {
+                    cardPhoto.classList.add('hidden');
+                    cardPhotoPlaceholder.classList.remove('hidden');
+                }
+            }
+        }
+
+        // --- NAVEGAÇÃO DE ABAS ---
+        function switchView(viewName) {
+            // Resetar
+            [tabGenerator, tabEmployees].forEach(el => el.classList.add('hidden'));
+            [actionsGenerator, actionsList].forEach(el => el.classList.add('hidden'));
+            [navCard, navEmployees].forEach(btn => {
+                btn.classList.replace('text-white', 'text-slate-500');
+                btn.querySelector('div:first-child').className = "p-2.5 rounded-xl bg-transparent group-hover:bg-white/10 transition-all duration-300 relative";
+                const ind = btn.querySelector('.active-indicator');
+                if(ind) ind.classList.add('hidden');
+            });
+
+            // Ativar
+            let activeBtn, activeTab, activeActions, title, desc, tagText, tagColorClass, tagTextClass;
+
+            if (viewName === 'employees') {
+                activeBtn = navEmployees; activeTab = tabEmployees; activeActions = actionsList;
+                title = "Colaboradores"; desc = "Selecione para adicionar à fila."; 
+                tagText = "Biblioteca"; tagColorClass = "bg-indigo-50 border-indigo-100"; tagTextClass = "text-indigo-600";
+            } else {
+                activeBtn = navCard; activeTab = tabGenerator; activeActions = actionsGenerator;
+                title = "Fila de Impressão"; desc = "Revise antes de imprimir.";
+                tagText = "Impressão"; tagColorClass = "bg-amber-50 border-amber-100"; tagTextClass = "text-amber-600";
+            }
+
+            activeBtn.classList.replace('text-slate-500', 'text-white');
+            activeBtn.querySelector('div:first-child').className = "p-2.5 rounded-xl bg-white/10 shadow-inner group-hover:bg-loto-red group-hover:shadow-glow transition-all duration-300 relative";
+            const ind = activeBtn.querySelector('.active-indicator');
+            if(ind) ind.classList.remove('hidden');
+
+            activeTab.classList.remove('hidden');
+            activeActions.classList.remove('hidden');
+            activeActions.style.display = viewName === 'employees' ? 'flex' : 'flex'; // Garante display flex
+
+            // Atualiza Header
+            panelTitle.textContent = title;
+            panelDesc.textContent = desc;
+            panelTag.textContent = tagText;
+            panelTag.className = `text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wide ${tagColorClass} ${tagTextClass}`;
+        }
+
+        navEmployees.addEventListener('click', () => switchView('employees'));
+        navCard.addEventListener('click', () => switchView('card'));
+
+        // --- IMPRESSÃO ---
+        btnPrint.addEventListener('click', async () => {
+            if(queue.length === 0) return;
+            
+            printBatchArea.innerHTML = '';
+            
+            // Preparar dados da fila
+            const queueItems = queue.map(id => employees.find(e => e.id === id)).filter(e => e);
+            
+            // Agrupar em pares
             const chunked = [];
-            for (let i = 0; i < toPrint.length; i += 2) {
-                chunked.push(toPrint.slice(i, i + 2));
+            for (let i = 0; i < queueItems.length; i += 2) {
+                chunked.push(queueItems.slice(i, i + 2));
             }
 
             chunked.forEach(pair => {
                 let pageHtml = '<div class="print-page">';
-                
                 pair.forEach(data => {
                     const photoHtml = data.photo 
                         ? `<img src="${data.photo}" class="w-full h-full object-cover" />`
@@ -843,15 +1020,10 @@
                                     <div class="bg-white w-1/2 border-2 border-black overflow-hidden relative flex items-center justify-center bg-gray-100">${photoHtml}</div>
                                 </div>
                                 <div class="bg-white flex-grow border-2 border-black p-2 flex flex-col justify-start gap-5 items-center text-center relative">
-                                    <div class="flex flex-col gap-1 w-full pt-2"><span class="font-bold uppercase text-sm block">${data.name || 'NOME DO FUNCIONÁRIO'}</span></div>
-                                    <div class="flex flex-col gap-1 w-full"><span class="font-bold uppercase text-sm block">${data.sector || 'DEPARTAMENTO'}</span></div>
-                                    <div class="flex flex-col gap-1 w-full"><span class="font-bold uppercase text-sm block">${data.role || 'FUNÇÃO'}</span></div>
-                                    
-                                    <!-- *** LOGO LDC VETORIAL (USANDO O TEMPLATE) *** -->
-                                    <div class="absolute bottom-1 right-1 opacity-90">
-                                        ${LDC_LOGO_TEMPLATE}
-                                    </div>
-
+                                    <div class="flex flex-col gap-1 w-full pt-2"><span class="font-bold uppercase text-sm block">${data.name}</span></div>
+                                    <div class="flex flex-col gap-1 w-full"><span class="font-bold uppercase text-sm block">${data.sector}</span></div>
+                                    <div class="flex flex-col gap-1 w-full"><span class="font-bold uppercase text-sm block">${data.role}</span></div>
+                                    <div class="absolute bottom-1 right-1 opacity-90">${LDC_LOGO_TEMPLATE}</div>
                                 </div>
                             </div>
                         </div>
@@ -875,18 +1047,11 @@
                     </div>`;
                     pageHtml += rowHtml;
                 });
-                
-                pageHtml += '</div>'; // Fecha print-page
-                printArea.innerHTML += pageHtml;
+                pageHtml += '</div>';
+                printBatchArea.innerHTML += pageHtml; // FIXED
             });
-        }
-        
-        // --- FUNÇÃO DE IMPRESSÃO ROBUSTA ---
-        async function handlePrint() {
-            generatePrintBatch();
-            
-            // Como removemos a imagem externa, a impressão é muito mais rápida.
-            // Apenas aguardamos as fotos dos funcionários carregarem (se houver)
+
+            // Aguardar imagens e imprimir
             const images = [...document.querySelectorAll('#print-batch-area img')];
             if (images.length > 0) {
                  await Promise.all(images.map(img => {
@@ -894,93 +1059,12 @@
                     return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
                 }));
             }
-            
             setTimeout(() => window.print(), 200);
-        }
-
-        btnPrint.addEventListener('click', handlePrint);
-
-        // --- NAVEGAÇÃO DE ABAS ---
-        function switchView(viewName) {
-            // Esconder todas as abas
-            [tabGenerator, tabEmployees].forEach(el => el.classList.add('hidden'));
-            [actionsGenerator, actionsList].forEach(el => el.classList.add('hidden'));
-            
-            // Resetar botões do menu
-            [navCard, navEmployees].forEach(btn => {
-                btn.classList.replace('text-white', 'text-slate-500');
-                btn.querySelector('div:first-child').className = "p-2.5 rounded-xl bg-transparent group-hover:bg-white/10 transition-all duration-300";
-                
-                // Segurança contra null
-                const indicator = btn.querySelector('.active-indicator');
-                if (indicator) indicator.classList.add('hidden');
-            });
-
-            // Ativar botão selecionado
-            const activeBtn = viewName === 'card' ? navCard : navEmployees;
-            activeBtn.classList.replace('text-slate-500', 'text-white');
-            activeBtn.querySelector('div:first-child').className = "p-2.5 rounded-xl bg-white/10 shadow-inner group-hover:bg-loto-red group-hover:shadow-glow transition-all duration-300";
-            
-            const activeIndicator = activeBtn.querySelector('.active-indicator');
-            if(activeIndicator) activeIndicator.classList.remove('hidden');
-
-            // Exibir conteúdo da aba
-            if (viewName === 'card') {
-                tabGenerator.classList.remove('hidden');
-                actionsGenerator.classList.remove('hidden');
-                panelTitle.textContent = "Fila de Impressão";
-                panelDesc.textContent = "Preencha os cartões sequencialmente.";
-            } else if (viewName === 'employees') {
-                tabEmployees.classList.remove('hidden');
-                actionsList.classList.remove('hidden');
-                panelTitle.textContent = "Biblioteca de Equipe";
-                panelDesc.textContent = "Colaboradores salvos localmente.";
-                renderEmployees();
-            }
-        }
-
-        // Event Listeners de Navegação
-        navCard.addEventListener('click', () => switchView('card'));
-        navEmployees.addEventListener('click', () => switchView('employees'));
-        window.switchToCardEditor = () => switchView('card');
-
-        // --- RENDERIZAÇÃO DA BIBLIOTECA ---
-        function renderEmployees() {
-            employeesList.innerHTML = '';
-            employeeCount.textContent = employees.length;
-            if(employees.length === 0) {
-                employeesList.innerHTML = `<div class="text-center py-10 px-4 border border-dashed border-slate-200 rounded-2xl bg-slate-50"><p class="text-sm text-slate-500 font-medium">Nenhum salvo</p></div>`;
-                return;
-            }
-            employees.forEach((emp, index) => {
-                const div = document.createElement('div');
-                div.className = 'group bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 hover:shadow-md hover:border-slate-300 transition-all';
-                const img = emp.photo ? `<img src="${emp.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-100">` : `<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">IMG</div>`;
-                div.innerHTML = `${img}<div class="flex-1 min-w-0"><p class="text-sm font-bold text-slate-800 truncate">${emp.name}</p><p class="text-xs text-slate-500 truncate">${emp.role}</p></div><button onclick="window.loadEmployee(${index})" class="p-2 text-slate-400 hover:text-loto-red hover:bg-red-50 rounded-lg"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button onclick="window.deleteEmployee(${index})" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
-                employeesList.appendChild(div);
-            });
-        }
-
-        window.loadEmployee = (i) => { createCard({id: nextCardId++, ...employees[i]}); switchView('card'); };
-        window.deleteEmployee = (i) => { 
-            openModal('Remover Colaborador?', 'Deseja remover este colaborador da biblioteca salva?', () => {
-                employees.splice(i, 1); 
-                try{localStorage.setItem('lotoEmployees', JSON.stringify(employees))}catch(e){} 
-                renderEmployees(); 
-            });
-        };
-        
-        btnReset.addEventListener('click', () => { 
-            openModal('Limpar Tudo?', 'Isso apagará todos os cartões da fila. A biblioteca não será afetada.', () => {
-                 cards = []; 
-                 cardsContainer.innerHTML = ''; 
-                 createCard(); 
-            });
         });
 
         // Inicialização
-        document.getElementById('employee-count').textContent = employees.length;
-        createCard(); // Cria o primeiro cartão vazio
+        switchView('employees'); // Começa na prateleira
+        renderShelf();
     });
   </script>
 </body>
