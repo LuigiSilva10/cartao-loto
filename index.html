@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LOTO Master - Professional</title>
+  
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Configuração do Tailwind -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            slate: {
+              50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1',
+              400: '#94a3b8', 500: '#64748b', 600: '#475569', 800: '#1e293b', 900: '#0f172a',
+            },
+            loto: {
+              red: '#D81E05', // Vermelho Segurança
+              darkRed: '#b01804',
+              black: '#111111',
+              gray: '#2A2A2A',
+              lightRed: '#FEF2F2',
+              redBorder: '#FECACA',
+              ldcBlue: '#0f172a' // Cor escura para a logo
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['Fira Code', 'monospace'],
+            serif: ['Times New Roman', 'Times', 'serif'], // Adicionado para a logo
+          },
+          boxShadow: {
+            'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+            'glow': '0 0 15px rgba(216, 30, 5, 0.15)',
+            'input': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+          },
+          animation: {
+            'fade-in': 'fadeIn 0.2s ease-out forwards',
+            'scale-in': 'scaleIn 0.2s ease-out forwards',
+            'slide-up': 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+          },
+          keyframes: {
+            fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+            scaleIn: { '0%': { transform: 'scale(0.95)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
+            slideUp: { '0%': { transform: 'translateY(10px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Inter -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- ESTILOS CUSTOMIZADOS E IMPRESSÃO -->
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+
+    /* --- ESTILO DO CARTÃO LOTO (FÍSICO) --- */
+    .loto-card {
+      width: 76mm; 
+      height: 146mm; 
+      border-radius: 6mm;
+      background-color: #D81E05;
+      overflow: hidden;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      position: relative;
+    }
+    
+    .loto-header-border { position: relative; }
+    .loto-header-border::before {
+      content: ''; position: absolute; inset: 0;
+      border: 2px solid #D81E05; border-radius: 9999px;
+    }
+
+    /* --- UI: COMPONENTES DO EDITOR (HUD) --- */
+    .form-card {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: visible;
+    }
+    
+    /* Estado Ativo (Expandido) */
+    .form-card.active {
+      background-color: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid #D81E05;
+      box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.08);
+      transform: scale(1);
+      z-index: 10; opacity: 1; margin-bottom: 1.5rem;
+    }
+
+    /* Estado Inativo (Colapsado) */
+    .form-card.inactive {
+      background-color: #ffffff;
+      border: 1px solid #f1f5f9;
+      border-left: 4px solid transparent;
+      opacity: 0.6; transform: scale(0.98); cursor: pointer; margin-bottom: 0.75rem;
+    }
+    .form-card.inactive:hover {
+      opacity: 1; background-color: #f8fafc; border-color: #cbd5e1;
+      transform: scale(0.99); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    }
+    
+    .form-card.inactive .form-body { display: none; }
+    .form-card.inactive .form-summary { display: flex; }
+    .form-card.active .form-summary { display: none; }
+    
+    /* Inputs Customizados */
+    .input-field:focus {
+      background-color: #ffffff; border-color: #D81E05;
+      box-shadow: 0 0 0 4px rgba(216, 30, 5, 0.05);
+    }
+    .input-field:hover:not(:focus):not(:disabled) { border-color: #94a3b8; }
+
+    /* Área de Upload de Foto */
+    .photo-upload-area { transition: all 0.3s ease; }
+    .photo-upload-area:hover { border-color: #D81E05; background-color: #FEF2F2; }
+    .photo-upload-area:hover .upload-icon { color: #D81E05; transform: scale(1.1); }
+
+    /* Scrollbar Customizada */
+    .custom-scroll::-webkit-scrollbar { width: 6px; }
+    .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+    .custom-scroll::-webkit-scrollbar-thumb { 
+      background: #cbd5e1; border-radius: 10px; border: 2px solid transparent; background-clip: content-box; 
+    }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+
+    /* --- CURSORES PARA PAN & ZOOM --- */
+    .cursor-grab { cursor: grab; }
+    .cursor-grabbing { cursor: grabbing; }
+
+    /* --- REGRAS DE IMPRESSÃO (CTRL+P) --- */
+    @media print {
+      @page { margin: 0; size: A4 portrait; }
+      
+      body {
+        background-color: white !important; margin: 0 !important;
+        padding: 0 !important; overflow: visible !important;
+      }
+      
+      /* Esconder elementos da UI na impressão */
+      nav, aside, .preview-header, #btn-add-card-manual, #interactive-preview-wrapper, #confirmation-modal, #preview-controls { 
+        display: none !important; 
+      }
+      
+      #main-container, main {
+        display: block !important; height: auto !important; overflow: visible !important; padding: 0 !important;
+      }
+
+      /* Mostrar Área de Impressão */
+      #print-batch-area {
+        display: block !important; width: 100%; position: absolute; top: 0; left: 0;
+      }
+      
+      /* Definição da Página A4 */
+      .print-page {
+        width: 210mm; height: 296mm; 
+        page-break-after: always; page-break-inside: avoid;
+        display: flex; flex-direction: column; justify-content: space-evenly; align-items: center;
+        overflow: hidden;
+      }
+      .print-page:last-child { page-break-after: auto; }
+
+      /* Linha de Cartões (Frente + Verso) */
+      .print-row {
+        display: flex; flex-direction: row; gap: 2mm;
+        transform: scale(0.92); transform-origin: center; page-break-inside: avoid;
+      }
+
+      /* Ajustes do Cartão na Impressão */
+      .loto-card {
+        box-shadow: none !important; border: 1px dashed #9ca3af !important;
+        print-color-adjust: exact !important; -webkit-print-color-adjust: exact !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased h-screen flex flex-row overflow-hidden selection:bg-loto-red selection:text-white" id="main-container">
+
+  <!-- 1. BARRA DE NAVEGAÇÃO LATERAL (ESQUERDA) -->
+  <nav class="w-[80px] bg-[#0B0F19] flex flex-col items-center py-6 gap-8 z-30 flex-shrink-0 shadow-2xl border-r border-slate-800">
+    <!-- Logo do App (Icone) -->
+    <div class="bg-gradient-to-br from-loto-red to-loto-darkRed text-white p-3 rounded-2xl shadow-glow mb-4">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    </div>
+    
+    <!-- Botões de Menu -->
+    <div class="flex flex-col gap-6 w-full px-3">
+      <!-- Botão Cartões -->
+      <button id="nav-card" class="group flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-300 relative text-white">
+        <div class="p-2.5 rounded-xl bg-white/10 shadow-inner group-hover:bg-loto-red group-hover:shadow-glow transition-all duration-300">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        </div>
+        <span class="text-[9px] font-bold tracking-widest uppercase opacity-90">Cartões</span>
+        <div class="active-indicator absolute -right-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-loto-red rounded-l-full shadow-[0_0_10px_#D81E05]"></div>
+      </button>
+      
+      <!-- Botão Equipe -->
+      <button id="nav-employees" class="group flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-300 relative text-slate-500 hover:text-white">
+        <div class="p-2.5 rounded-xl bg-transparent group-hover:bg-white/10 transition-all duration-300">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <span class="text-[9px] font-bold tracking-widest uppercase">Equipe</span>
+        <div class="active-indicator absolute -right-3 top-1/2 -translate-y-1/2 w-1 h-6 bg-loto-red rounded-l-full shadow-[0_0_10px_#D81E05] hidden"></div>
+      </button>
+    </div>
+  </nav>
+
+  <!-- 2. PAINEL ESQUERDO: EDITOR E LISTA -->
+  <aside class="w-full md:w-[420px] flex-shrink-0 bg-white border-r border-slate-200 flex flex-col overflow-hidden z-20 shadow-[4px_0_24px_rgba(0,0,0,0.02)] h-full">
+    <!-- Cabeçalho do Painel -->
+    <div class="px-6 py-8 border-b border-slate-100 bg-white flex flex-col gap-1">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="bg-red-50 text-loto-red text-[10px] font-bold px-2 py-0.5 rounded border border-red-100 uppercase tracking-wide">Modo Editor</span>
+      </div>
+      <h1 id="panel-title" class="text-2xl font-bold text-slate-900 tracking-tight">Fila de Impressão</h1>
+      <p id="panel-desc" class="text-sm text-slate-500 font-medium">Gerencie os dados dos colaboradores.</p>
+    </div>
+
+    <!-- Conteúdo Rolável (Abas) -->
+    <div class="flex-1 overflow-y-auto p-6 custom-scroll relative bg-slate-50">
+      
+      <!-- ABA 1: GERADOR (CARDS) -->
+      <div id="tab-generator" class="animate-in fade-in slide-in-from-left-4 duration-300 pb-20">
+        <div id="cards-container" class="space-y-4">
+          <!-- Os formulários dos cartões são injetados aqui via JS -->
+        </div>
+        
+        <!-- Botão Adicionar Novo -->
+        <button id="btn-add-card-manual" class="group w-full mt-6 py-5 border-2 border-dashed border-slate-300 rounded-2xl text-slate-400 font-semibold hover:border-loto-red hover:text-loto-red hover:bg-white transition-all duration-300 flex flex-col items-center justify-center gap-2 text-sm shadow-sm hover:shadow-md relative overflow-hidden">
+            <div class="bg-slate-100 group-hover:bg-red-50 rounded-full p-2 transition-colors z-10">
+               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            </div>
+            <span class="z-10">Adicionar Novo Cartão</span>
+            <div class="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-red-50 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+        </button>
+      </div>
+
+      <!-- ABA 2: BIBLIOTECA (EQUIPE) -->
+      <div id="tab-employees" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-300 p-1">
+        <div class="flex justify-between items-center mb-4 px-1">
+          <h2 class="font-bold text-slate-800 text-sm tracking-wide">BIBLIOTECA DE EQUIPE</h2>
+          <span id="employee-count" class="text-[10px] bg-slate-900 text-white px-2 py-0.5 rounded-full font-bold">0</span>
+        </div>
+        <div id="employees-list" class="space-y-3 pb-20">
+            <!-- Lista de funcionários salvos injetada aqui -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Rodapé com Ações -->
+    <div class="p-5 border-t border-slate-200 bg-white z-20 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      
+      <!-- Ações do Gerador -->
+      <div id="actions-generator" class="flex flex-col gap-3">
+        <button type="button" id="btn-save-current" class="w-full bg-slate-50 text-slate-700 font-semibold py-3 px-4 rounded-xl border border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-md hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2 text-sm group">
+          <svg class="text-slate-400 group-hover:text-emerald-500 transition-colors" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Salvar na Biblioteca
+        </button>
+        
+        <div class="grid grid-cols-4 gap-3">
+          <button type="button" id="btn-reset" class="col-span-1 bg-white text-slate-400 border border-slate-200 font-semibold py-3 rounded-xl hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-all flex items-center justify-center shadow-sm" title="Limpar Tudo">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          </button>
+          
+          <button type="button" id="btn-print" class="col-span-3 bg-slate-900 text-white font-bold py-3 px-4 rounded-xl hover:bg-loto-black hover:shadow-lg hover:shadow-slate-900/20 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2.5 group">
+            <svg class="text-slate-400 group-hover:text-white transition-colors" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            IMPRIMIR LOTE
+          </button>
+        </div>
+      </div>
+      
+      <!-- Ações da Biblioteca -->
+      <div id="actions-list" class="hidden">
+        <button type="button" onclick="window.switchToCardEditor()" class="w-full bg-loto-red text-white font-bold py-3.5 px-4 rounded-xl hover:bg-loto-darkRed transition flex items-center justify-center gap-2 shadow-lg shadow-red-500/20">
+           + Criar Novo Cartão
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 3. PAINEL DIREITO: PREVIEW (VISUALIZAÇÃO) -->
+  <main class="flex-1 bg-white relative flex flex-col h-full overflow-hidden">
+    <!-- Topo do Preview -->
+    <div class="h-20 border-b border-slate-200/60 bg-white/70 backdrop-blur-md flex items-center justify-between px-8 shrink-0 preview-header z-10 sticky top-0">
+      <div class="flex items-center gap-3">
+        <div class="bg-white p-2 rounded-lg shadow-sm border border-slate-100 text-loto-red">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h10"/><path d="M9 4v16"/><path d="m3 9 3 3-3 3"/><path d="M14 8V7c0-1.1.9-2 2-2h6"/><path d="M14 12h8"/><path d="M14 16v1c0 1.1.9 2 2 2h6"/></svg>
+        </div>
+        <div>
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block">Preview</span>
+            <span class="text-sm font-semibold text-slate-700 tracking-tight">Visualização em Tempo Real</span>
+        </div>
+      </div>
+      <div class="flex gap-2">
+         <div class="px-3 py-1 bg-slate-100 border border-slate-200 rounded-md text-[10px] font-mono text-slate-500 font-bold uppercase tracking-wider">
+           Folha A4 / Retrato
+         </div>
+      </div>
+    </div>
+
+    <!-- Área de Renderização dos Cartões (Frente e Verso) - COM ZOOM E PAN -->
+    <div id="preview-viewport" class="flex-1 overflow-hidden relative cursor-grab bg-slate-50/50 flex items-center justify-center">
+      
+      <!-- Botão de Resetar View -->
+      <div id="preview-controls" class="absolute bottom-6 right-6 z-30 flex gap-2">
+          <button id="btn-reset-view" class="bg-white text-slate-500 border border-slate-200 shadow-md hover:text-loto-red hover:border-loto-red hover:shadow-lg rounded-full px-4 py-2 text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Resetar Vista
+          </button>
+      </div>
+
+      <div id="interactive-preview-wrapper" class="flex flex-col xl:flex-row gap-12 xl:gap-6 items-start justify-center py-4 origin-center transition-transform duration-75">
+        
+        <!-- FRENTE DO CARTÃO -->
+        <div class="flex flex-col items-center gap-4 group">
+          <div class="flex items-center gap-2 text-slate-400 group-hover:text-loto-red transition-colors select-none">
+            <span class="text-[10px] font-bold tracking-[0.2em] uppercase">Frente</span>
+          </div>
+          <div class="loto-card relative flex flex-col items-center p-3 select-none">
+              <div class="absolute top-4 w-4 h-4 bg-gray-800 rounded-full border-2 border-gray-600 opacity-80 z-20"></div>
+              <div class="h-10 w-full"></div>
+              <div class="w-full bg-loto-black p-2 mb-2">
+                  <div class="loto-header-border border-2 border-white rounded-full bg-loto-red py-1 px-4 overflow-hidden">
+                      <div class="text-center">
+                          <h1 class="text-white font-black text-3xl uppercase tracking-wider leading-tight py-1">PERIGO</h1>
+                      </div>
+                  </div>
+              </div>
+              <div class="flex flex-col w-full h-full gap-2">
+                  <div class="bg-white p-2 text-center border-2 border-black">
+                      <h2 class="text-2xl font-bold uppercase leading-none">NÃO LIGUE</h2>
+                  </div>
+                  <div class="flex flex-row gap-2 h-32">
+                      <div class="bg-white p-2 w-1/2 flex items-center justify-center border-2 border-black">
+                          <p class="font-bold text-sm uppercase leading-tight text-left">ESTOU<br/>TRABALHANDO<br/>NESTE<br/>EQUIPAMENTO</p>
+                      </div>
+                      <div class="bg-white w-1/2 border-2 border-black overflow-hidden relative flex items-center justify-center bg-gray-100">
+                           <img id="card-photo" src="" alt="Foto" class="w-full h-full object-cover hidden" />
+                           <div id="card-photo-placeholder" class="text-gray-400 text-xs text-center p-1 font-semibold">FOTO DO<br/>COLABORADOR</div>
+                      </div>
+                  </div>
+                  <div class="bg-white flex-grow border-2 border-black p-2 flex flex-col justify-start gap-5 items-center text-center relative">
+                      <div class="flex flex-col gap-1 w-full pt-2">
+                          <div class="min-h-[1.5rem]">
+                              <span id="card-name" class="font-bold uppercase text-sm block">NOME DO FUNCIONÁRIO</span>
+                          </div>
+                      </div>
+                      <div class="flex flex-col gap-1 w-full">
+                          <div class="min-h-[1.5rem]">
+                              <span id="card-sector" class="font-bold uppercase text-sm block">DEPARTAMENTO</span>
+                          </div>
+                      </div>
+                      <div class="flex flex-col gap-1 w-full">
+                          <div class="min-h-[1.5rem]">
+                              <span id="card-role" class="font-bold uppercase text-sm block">FUNÇÃO</span>
+                          </div>
+                      </div>
+                      
+                      <!-- *** LOCAL DA LOGO DA LDC (VECTOR CLONE) *** -->
+                      <div id="preview-logo-container" class="absolute bottom-1 right-1 opacity-90"></div>
+
+                  </div>
+              </div>
+          </div>
+        </div>
+        
+        <!-- VERSO DO CARTÃO -->
+        <div class="flex flex-col items-center gap-4 group">
+          <div class="flex items-center gap-2 text-slate-400 group-hover:text-loto-red transition-colors select-none">
+            <span class="text-[10px] font-bold tracking-[0.2em] uppercase">Verso</span>
+          </div>
+          <div class="loto-card relative flex flex-col items-center p-3 select-none">
+              <div class="absolute top-4 w-4 h-4 bg-gray-800 rounded-full border-2 border-gray-600 opacity-80 z-20"></div>
+              <div class="h-10 w-full"></div>
+              <div class="w-full bg-loto-black p-2 mb-2">
+                  <div class="loto-header-border border-2 border-white rounded-full bg-loto-red py-1 px-4 overflow-hidden">
+                      <div class="text-center">
+                          <h1 class="text-white font-black text-3xl uppercase tracking-wider leading-tight py-1">PERIGO</h1>
+                      </div>
+                  </div>
+              </div>
+              <div class="flex flex-col w-full h-full gap-2">
+                  <div class="bg-white flex-grow border-2 border-black p-4 flex flex-col gap-6 text-sm font-bold uppercase leading-snug">
+                      <p>1. NÃO OPERE ESTE EQUIPAMENTO ATÉ QUE A PESSOA AUTORIZADA INDICADA NO VERSO REMOVA ESTA ETIQUETA.</p>
+                      <p>2. ESTA ETIQUETA E CADEADO SÓ PODEM SER REMOVIDOS PELA PESSOA INDICADA NO VERSO.</p>
+                  </div>
+                  <div class="h-4"></div>
+              </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ÁREA DE RENDERIZAÇÃO DE IMPRESSÃO (Oculta na tela) -->
+  <div id="print-batch-area" class="hidden"></div>
+
+  <!-- MODAL DE CONFIRMAÇÃO -->
+  <div id="confirmation-modal" class="fixed inset-0 z-50 hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity opacity-0 animate-fade-in"></div>
+    <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
+      <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+        <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:w-full sm:max-w-lg scale-95 opacity-0 animate-scale-in">
+          <div class="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+            <div class="sm:flex sm:items-start">
+              <div class="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-50 sm:mx-0 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+              </div>
+              <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                <h3 class="text-base font-semibold leading-6 text-slate-900" id="modal-title">Confirmar Exclusão</h3>
+                <div class="mt-2">
+                  <p id="modal-description" class="text-sm text-slate-500">Tem certeza que deseja excluir este cartão?</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="bg-slate-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+            <button id="modal-confirm-btn" type="button" class="inline-flex w-full justify-center rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto transition-colors">Excluir</button>
+            <button id="modal-cancel-btn" type="button" class="mt-3 inline-flex w-full justify-center rounded-lg bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 hover:bg-slate-50 sm:mt-0 sm:w-auto transition-colors">Cancelar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- --- LÓGICA JAVASCRIPT --- -->
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        // --- SELEÇÃO DE ELEMENTOS DO DOM ---
+        const navCard = document.getElementById('nav-card');
+        const navEmployees = document.getElementById('nav-employees');
+        const tabGenerator = document.getElementById('tab-generator');
+        const tabEmployees = document.getElementById('tab-employees');
+        const actionsGenerator = document.getElementById('actions-generator');
+        const actionsList = document.getElementById('actions-list');
+        const panelTitle = document.getElementById('panel-title');
+        const panelDesc = document.getElementById('panel-desc');
+        const employeesList = document.getElementById('employees-list');
+        const employeeCount = document.getElementById('employee-count');
+        const cardName = document.getElementById('card-name');
+        const cardRole = document.getElementById('card-role');
+        const cardSector = document.getElementById('card-sector');
+        const cardPhoto = document.getElementById('card-photo');
+        const cardPhotoPlaceholder = document.getElementById('card-photo-placeholder');
+        const btnReset = document.getElementById('btn-reset');
+        const btnSaveCurrent = document.getElementById('btn-save-current');
+        const btnPrint = document.getElementById('btn-print');
+        const printBatchArea = document.getElementById('print-batch-area');
+        const cardsContainer = document.getElementById('cards-container');
+        const btnAddCardManual = document.getElementById('btn-add-card-manual');
+        const modal = document.getElementById('confirmation-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalDesc = document.getElementById('modal-description');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const previewLogoContainer = document.getElementById('preview-logo-container');
+        
+        // ELEMENTOS PARA ZOOM/PAN
+        const previewViewport = document.getElementById('preview-viewport');
+        const interactivePreviewWrapper = document.getElementById('interactive-preview-wrapper');
+        const btnResetView = document.getElementById('btn-reset-view');
+
+        // --- CLONE DA LOGO LDC (VETORIAL - REDUZIDA) ---
+        // Reduzi o tamanho das fontes e bolinha para atender ao pedido
+        const LDC_LOGO_TEMPLATE = `
+        <div style="display: flex; flex-direction: column; align-items: flex-start; transform-origin: bottom right;">
+            <div style="display: flex; align-items: baseline; line-height: 0.8;">
+                <span style="font-family: 'Times New Roman', Times, serif; font-size: 24px; color: #315575; font-weight: 400; letter-spacing: -1px; transform: scaleY(1.1); display: inline-block;">LDC</span>
+                <span style="width: 5px; height: 5px; background-color: #55a536; border-radius: 50%; margin-left: 2px; margin-bottom: 2px; display: inline-block;"></span>
+            </div>
+            <span style="font-family: 'Inter', Arial, sans-serif; font-size: 5px; color: #55a536; font-weight: 600; letter-spacing: 0px; white-space: nowrap; margin-top: 2px; display: block;">Louis Dreyfus Company</span>
+        </div>
+        `;
+
+        // Renderiza a logo no Preview imediatamente
+        if (previewLogoContainer) previewLogoContainer.innerHTML = LDC_LOGO_TEMPLATE;
+
+        // --- LÓGICA DE PAN E ZOOM (IMERSÃO) ---
+        let scale = 1;
+        let panning = false;
+        let pointX = 0;
+        let pointY = 0;
+        let startX = 0;
+        let startY = 0;
+
+        function updateTransform() {
+            interactivePreviewWrapper.style.transform = `translate(${pointX}px, ${pointY}px) scale(${scale})`;
+        }
+
+        previewViewport.addEventListener('mousedown', (e) => {
+            // Evita panning se clicar no reset button
+            if (e.target.closest('#btn-reset-view')) return;
+            
+            e.preventDefault();
+            startX = e.clientX - pointX;
+            startY = e.clientY - pointY;
+            panning = true;
+            previewViewport.classList.add('cursor-grabbing');
+            previewViewport.classList.remove('cursor-grab');
+        });
+
+        previewViewport.addEventListener('mouseup', () => {
+            panning = false;
+            previewViewport.classList.remove('cursor-grabbing');
+            previewViewport.classList.add('cursor-grab');
+        });
+
+        previewViewport.addEventListener('mouseleave', () => {
+            panning = false;
+            previewViewport.classList.remove('cursor-grabbing');
+            previewViewport.classList.add('cursor-grab');
+        });
+
+        previewViewport.addEventListener('mousemove', (e) => {
+            if (!panning) return;
+            e.preventDefault();
+            pointX = e.clientX - startX;
+            pointY = e.clientY - startY;
+            updateTransform();
+        });
+
+        previewViewport.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const xs = (e.clientX - pointX) / scale;
+            const ys = (e.clientY - pointY) / scale;
+            const delta = -Math.sign(e.deltaY);
+            // Zoom suave, limitando entre 0.5x e 3x
+            const newScale = Math.min(Math.max(0.5, scale + delta * 0.1), 3);
+            scale = newScale;
+            updateTransform();
+        });
+
+        btnResetView.addEventListener('click', () => {
+            scale = 1;
+            pointX = 0;
+            pointY = 0;
+            updateTransform();
+        });
+
+
+        // --- ESTADO DA APLICAÇÃO ---
+        let currentModalCallback = null;
+        let employees = []; // Banco de dados local de funcionários
+        let cards = []; // Lista de cartões na fila de impressão
+        let nextCardId = 1;
+        let activeCardId = null;
+
+        // Carregar dados salvos
+        try {
+            const stored = localStorage.getItem('lotoEmployees');
+            if (stored) employees = JSON.parse(stored);
+        } catch (e) { console.warn(e); }
+
+        // --- SISTEMA DE MODAL ---
+        function openModal(title, desc, callback) {
+            modalTitle.textContent = title;
+            modalDesc.textContent = desc;
+            currentModalCallback = callback;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            modal.classList.add('hidden');
+            currentModalCallback = null;
+        }
+
+        modalConfirmBtn.addEventListener('click', () => {
+            if (currentModalCallback) currentModalCallback();
+            closeModal();
+        });
+
+        modalCancelBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target.id === 'confirmation-modal' || e.target.classList.contains('backdrop-blur-sm')) closeModal();
+        });
+
+        // --- GERENCIAMENTO DE CARTÕES ---
+        function createCard(initialData = null) {
+            const id = nextCardId++;
+            let cardData;
+            
+            // Definição de valores padrão e restrições
+            if (initialData) {
+                let role = initialData.role;
+                // Força as opções de cargo permitidas
+                if (!['Mecânica', 'Soldador', 'Caldeireiro'].includes(role)) {
+                    role = 'Mecânica';
+                }
+                cardData = { ...initialData, id: id, sector: 'Manutenção', role: role };
+            } else {
+                cardData = { id: id, name: '', role: 'Mecânica', sector: 'Manutenção', photo: null };
+            }
+            
+            cards.push(cardData);
+            const cardEl = renderCardElement(cardData);
+            cardsContainer.appendChild(cardEl);
+            activateCard(id);
+            setTimeout(() => cardEl.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+        }
+
+        function renderCardElement(data) {
+            const div = document.createElement('div');
+            // Animação de entrada
+            div.className = 'form-card bg-white rounded-xl border border-slate-200 overflow-hidden mb-3 animate-slide-up';
+            div.id = `form-card-${data.id}`;
+            div.dataset.id = data.id;
+
+            // HTML do HUD (Painel de Edição)
+            div.innerHTML = `
+                <!-- CABEÇALHO (VISÍVEL QUANDO COLAPSADO) -->
+                <div class="card-header p-4 bg-white flex items-center justify-between cursor-pointer group">
+                    <div class="flex items-center gap-4">
+                         <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold text-xs flex items-center justify-center border border-slate-200 shadow-sm card-num transition-colors group-hover:bg-slate-200 group-hover:text-slate-700">${cards.indexOf(data) + 1}</div>
+                         <div class="flex flex-col">
+                            <span class="font-bold text-sm text-slate-800 card-title-display leading-tight">${data.name || 'Novo Colaborador'}</span>
+                            <div class="form-summary flex items-center gap-2 mt-0.5">
+                                <span class="text-[10px] text-slate-400 font-medium uppercase tracking-wide truncate max-w-[150px] summary-role">${data.role || 'Mecânica'}</span>
+                            </div>
+                         </div>
+                    </div>
+                    <button class="delete-btn text-slate-300 hover:text-red-500 hover:bg-red-50 p-2 rounded-lg transition-all" title="Remover">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </button>
+                </div>
+                
+                <!-- CORPO EXPANDIDO (HUD MODERNA) -->
+                <div class="form-body p-5 bg-white border-t border-slate-100">
+                    <div class="flex flex-row gap-5">
+                        <!-- LADO ESQUERDO: UPLOAD DE FOTO -->
+                        <div class="flex-shrink-0">
+                           <div class="relative w-[88px] h-[106px] rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-red-50 hover:border-loto-red transition-all cursor-pointer photo-trigger group photo-upload-area overflow-hidden flex flex-col items-center justify-center text-center shadow-sm">
+                                <img src="${data.photo || ''}" class="w-full h-full object-cover absolute inset-0 z-10 ${data.photo ? '' : 'hidden'} photo-preview transition-opacity group-hover:opacity-80">
+                                
+                                <div class="upload-icon text-slate-400 group-hover:text-loto-red transition-colors mb-1 z-0 relative">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                                </div>
+                                <span class="text-[9px] font-bold text-slate-400 group-hover:text-loto-red uppercase leading-tight z-0 relative">Adicionar<br>Foto</span>
+                                
+                                <input type="file" class="hidden file-input" accept="image/*">
+                           </div>
+                        </div>
+
+                        <!-- LADO DIREITO: CAMPOS DE TEXTO -->
+                        <div class="flex-1 flex flex-col justify-between gap-3">
+                             <div class="input-group">
+                                 <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Nome Completo</label>
+                                 <input type="text" class="input-field input-name w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-300 outline-none shadow-input" placeholder="Ex: JOÃO DA SILVA" value="${data.name}">
+                             </div>
+                             
+                             <div class="grid grid-cols-2 gap-3">
+                                <div class="input-group">
+                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Setor</label>
+                                     <div class="relative">
+                                        <input type="text" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-500 outline-none cursor-not-allowed select-none shadow-inner" value="MANUTENÇÃO" readonly>
+                                        <div class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                        </div>
+                                     </div>
+                                </div>
+                                <div class="input-group">
+                                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Função</label>
+                                     <div class="relative">
+                                         <select class="input-field input-role w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none appearance-none cursor-pointer shadow-input">
+                                            <option value="Mecânica" ${data.role === 'Mecânica' ? 'selected' : ''}>MECÂNICA</option>
+                                            <option value="Soldador" ${data.role === 'Soldador' ? 'selected' : ''}>SOLDADOR</option>
+                                            <option value="Caldeireiro" ${data.role === 'Caldeireiro' ? 'selected' : ''}>CALDEIREIRO</option>
+                                         </select>
+                                         <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 bg-white pl-1">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                                         </div>
+                                     </div>
+                                </div>
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Elementos internos do card
+            const header = div.querySelector('.card-header');
+            const deleteBtn = div.querySelector('.delete-btn');
+            const inputName = div.querySelector('.input-name');
+            const inputRole = div.querySelector('.input-role');
+            const photoTrigger = div.querySelector('.photo-trigger');
+            const fileInput = div.querySelector('.file-input');
+            const photoPreview = div.querySelector('.photo-preview');
+            const titleDisplay = div.querySelector('.card-title-display');
+            const summaryRole = div.querySelector('.summary-role');
+
+            // Eventos do Card
+            header.addEventListener('click', (e) => !e.target.closest('.delete-btn') && activateCard(data.id));
+
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openModal('Excluir Cartão?', 'Esta ação removerá este cartão da lista.', () => {
+                    const idx = cards.findIndex(c => c.id === data.id);
+                    if (idx > -1) {
+                        cards.splice(idx, 1);
+                        div.style.transition = 'all 0.3s ease'; div.style.opacity = '0'; div.style.transform = 'scale(0.9)';
+                        setTimeout(() => {
+                            div.remove();
+                            reindexCards();
+                            if (cards.length === 0) createCard();
+                            else if (activeCardId === data.id) activateCard(cards[cards.length - 1].id);
+                        }, 300);
+                    }
+                });
+            });
+
+            const updateData = () => {
+                const idx = cards.findIndex(c => c.id === data.id);
+                if (idx > -1) {
+                    cards[idx].name = inputName.value;
+                    cards[idx].role = inputRole.value;
+                    cards[idx].sector = 'Manutenção';
+                    titleDisplay.textContent = inputName.value || 'Novo Colaborador';
+                    summaryRole.textContent = inputRole.value;
+                    if (activeCardId === data.id) updatePreview();
+                }
+            };
+            
+            [inputName, inputRole].forEach(el => el.addEventListener('input', updateData));
+            photoTrigger.addEventListener('click', () => fileInput.click());
+            
+            // Leitura de Foto
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const src = ev.target.result;
+                        photoPreview.src = src;
+                        photoPreview.classList.remove('hidden');
+                        const idx = cards.findIndex(c => c.id === data.id);
+                        if (idx > -1) cards[idx].photo = src;
+                        if (activeCardId === data.id) updatePreview();
+                    }
+                    reader.readAsDataURL(file);
+                }
+            });
+            return div;
+        }
+
+        // --- UTILITÁRIOS ---
+        function reindexCards() {
+            document.querySelectorAll('.card-num').forEach((el, i) => el.textContent = i + 1);
+        }
+
+        function activateCard(id) {
+            activeCardId = id;
+            document.querySelectorAll('.form-card').forEach(el => {
+                const isTarget = parseInt(el.dataset.id) === id;
+                if (isTarget) {
+                    el.classList.add('active');
+                    el.classList.remove('inactive');
+                } else {
+                    el.classList.remove('active');
+                    el.classList.add('inactive');
+                }
+            });
+            updatePreview();
+        }
+
+        function updatePreview() {
+            const cardData = cards.find(c => c.id === activeCardId);
+            if (!cardData) return;
+            
+            const setText = (el, val, def) => el.textContent = val ? val.trim() : def;
+            setText(cardName, cardData.name, 'NOME DO FUNCIONÁRIO');
+            setText(cardRole, cardData.role, 'FUNÇÃO');
+            setText(cardSector, cardData.sector, 'DEPARTAMENTO');
+            
+            if (cardData.photo) {
+                cardPhoto.src = cardData.photo;
+                cardPhoto.classList.remove('hidden');
+                cardPhotoPlaceholder.classList.add('hidden');
+            } else {
+                cardPhoto.src = '';
+                cardPhoto.classList.add('hidden');
+                cardPhotoPlaceholder.classList.remove('hidden');
+            }
+        }
+
+        // --- BOTÕES GERAIS ---
+        btnAddCardManual.addEventListener('click', () => createCard());
+
+        btnSaveCurrent.addEventListener('click', () => {
+            const cardData = cards.find(c => c.id === activeCardId);
+            if (!cardData || !cardData.name) {
+                alert('Preencha pelo menos o nome para salvar.');
+                return;
+            }
+            employees.push({ ...cardData });
+            try { localStorage.setItem('lotoEmployees', JSON.stringify(employees)); } catch(e){}
+            const originalHTML = btnSaveCurrent.innerHTML;
+            btnSaveCurrent.innerHTML = `<span class="text-emerald-600 font-bold flex items-center gap-2">Salvo!</span>`;
+            setTimeout(() => { btnSaveCurrent.innerHTML = originalHTML; renderEmployees(); }, 1000);
+        });
+
+        // --- LÓGICA DE IMPRESSÃO (BATCH) ---
+        function generatePrintBatch() {
+            const printArea = document.getElementById('print-batch-area');
+            printArea.innerHTML = ''; 
+            const toPrint = cards.filter(c => c.name || c.role || c.photo);
+            // Garante que pelo menos o cartão atual seja impresso mesmo vazio
+            if(toPrint.length === 0 && cards.length > 0) toPrint.push(cards[0]);
+
+            // Agrupa em pares para impressão (lado a lado na folha A4)
+            const chunked = [];
+            for (let i = 0; i < toPrint.length; i += 2) {
+                chunked.push(toPrint.slice(i, i + 2));
+            }
+
+            chunked.forEach(pair => {
+                let pageHtml = '<div class="print-page">';
+                
+                pair.forEach(data => {
+                    const photoHtml = data.photo 
+                        ? `<img src="${data.photo}" class="w-full h-full object-cover" />`
+                        : `<div class="text-gray-400 text-xs text-center p-1 font-semibold flex items-center justify-center h-full">FOTO DO<br/>COLABORADOR</div>`;
+
+                    const rowHtml = `
+                    <div class="print-row">
+                        <!-- FRENTE -->
+                        <div class="loto-card relative flex flex-col items-center p-3" style="width: 76mm; height: 146mm; border-radius: 6mm; background-color: #D81E05; overflow: hidden; border: 1px dashed #ccc;">
+                            <div class="h-10 w-full"></div>
+                            <div class="w-full bg-loto-black p-2 mb-2">
+                                <div class="loto-header-border border-2 border-white rounded-full bg-loto-red py-1 px-4 overflow-hidden" style="position:relative;">
+                                    <div style="position:absolute;inset:0;border:2px solid #D81E05;border-radius:999px;"></div>
+                                    <div class="text-center"><h1 class="text-white font-black text-3xl uppercase tracking-wider leading-tight py-1">PERIGO</h1></div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col w-full h-full gap-2">
+                                <div class="bg-white p-2 text-center border-2 border-black"><h2 class="text-2xl font-bold uppercase leading-none">NÃO LIGUE</h2></div>
+                                <div class="flex flex-row gap-2 h-32">
+                                    <div class="bg-white p-2 w-1/2 flex items-center justify-center border-2 border-black"><p class="font-bold text-sm uppercase leading-tight text-left">ESTOU<br/>TRABALHANDO<br/>NESTE<br/>EQUIPAMENTO</p></div>
+                                    <div class="bg-white w-1/2 border-2 border-black overflow-hidden relative flex items-center justify-center bg-gray-100">${photoHtml}</div>
+                                </div>
+                                <div class="bg-white flex-grow border-2 border-black p-2 flex flex-col justify-start gap-5 items-center text-center relative">
+                                    <div class="flex flex-col gap-1 w-full pt-2"><span class="font-bold uppercase text-sm block">${data.name || 'NOME DO FUNCIONÁRIO'}</span></div>
+                                    <div class="flex flex-col gap-1 w-full"><span class="font-bold uppercase text-sm block">${data.sector || 'DEPARTAMENTO'}</span></div>
+                                    <div class="flex flex-col gap-1 w-full"><span class="font-bold uppercase text-sm block">${data.role || 'FUNÇÃO'}</span></div>
+                                    
+                                    <!-- *** LOGO LDC VETORIAL (USANDO O TEMPLATE) *** -->
+                                    <div class="absolute bottom-1 right-1 opacity-90">
+                                        ${LDC_LOGO_TEMPLATE}
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+                        <!-- VERSO -->
+                        <div class="loto-card relative flex flex-col items-center p-3" style="width: 76mm; height: 146mm; border-radius: 6mm; background-color: #D81E05; overflow: hidden; border: 1px dashed #ccc;">
+                            <div class="h-10 w-full"></div>
+                            <div class="w-full bg-loto-black p-2 mb-2">
+                                <div class="loto-header-border border-2 border-white rounded-full bg-loto-red py-1 px-4 overflow-hidden" style="position:relative;">
+                                    <div style="position:absolute;inset:0;border:2px solid #D81E05;border-radius:999px;"></div>
+                                    <div class="text-center"><h1 class="text-white font-black text-3xl uppercase tracking-wider leading-tight py-1">PERIGO</h1></div>
+                                </div>
+                            </div>
+                            <div class="flex flex-col w-full h-full gap-2">
+                                <div class="bg-white flex-grow border-2 border-black p-4 flex flex-col gap-6 text-sm font-bold uppercase leading-snug">
+                                    <p>1. NÃO OPERE ESTE EQUIPAMENTO ATÉ QUE A PESSOA AUTORIZADA INDICADA NO VERSO REMOVA ESTA ETIQUETA.</p>
+                                    <p>2. ESTA ETIQUETA E CADEADO SÓ PODEM SER REMOVIDOS PELA PESSOA INDICADA NO VERSO.</p>
+                                </div>
+                                <div class="h-4"></div>
+                            </div>
+                        </div>
+                    </div>`;
+                    pageHtml += rowHtml;
+                });
+                
+                pageHtml += '</div>'; // Fecha print-page
+                printArea.innerHTML += pageHtml;
+            });
+        }
+        
+        // --- FUNÇÃO DE IMPRESSÃO ROBUSTA ---
+        async function handlePrint() {
+            generatePrintBatch();
+            
+            // Como removemos a imagem externa, a impressão é muito mais rápida.
+            // Apenas aguardamos as fotos dos funcionários carregarem (se houver)
+            const images = [...document.querySelectorAll('#print-batch-area img')];
+            if (images.length > 0) {
+                 await Promise.all(images.map(img => {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+                }));
+            }
+            
+            setTimeout(() => window.print(), 200);
+        }
+
+        btnPrint.addEventListener('click', handlePrint);
+
+        // --- NAVEGAÇÃO DE ABAS ---
+        function switchView(viewName) {
+            // Esconder todas as abas
+            [tabGenerator, tabEmployees].forEach(el => el.classList.add('hidden'));
+            [actionsGenerator, actionsList].forEach(el => el.classList.add('hidden'));
+            
+            // Resetar botões do menu
+            [navCard, navEmployees].forEach(btn => {
+                btn.classList.replace('text-white', 'text-slate-500');
+                btn.querySelector('div:first-child').className = "p-2.5 rounded-xl bg-transparent group-hover:bg-white/10 transition-all duration-300";
+                
+                // Segurança contra null
+                const indicator = btn.querySelector('.active-indicator');
+                if (indicator) indicator.classList.add('hidden');
+            });
+
+            // Ativar botão selecionado
+            const activeBtn = viewName === 'card' ? navCard : navEmployees;
+            activeBtn.classList.replace('text-slate-500', 'text-white');
+            activeBtn.querySelector('div:first-child').className = "p-2.5 rounded-xl bg-white/10 shadow-inner group-hover:bg-loto-red group-hover:shadow-glow transition-all duration-300";
+            
+            const activeIndicator = activeBtn.querySelector('.active-indicator');
+            if(activeIndicator) activeIndicator.classList.remove('hidden');
+
+            // Exibir conteúdo da aba
+            if (viewName === 'card') {
+                tabGenerator.classList.remove('hidden');
+                actionsGenerator.classList.remove('hidden');
+                panelTitle.textContent = "Fila de Impressão";
+                panelDesc.textContent = "Preencha os cartões sequencialmente.";
+            } else if (viewName === 'employees') {
+                tabEmployees.classList.remove('hidden');
+                actionsList.classList.remove('hidden');
+                panelTitle.textContent = "Biblioteca de Equipe";
+                panelDesc.textContent = "Colaboradores salvos localmente.";
+                renderEmployees();
+            }
+        }
+
+        // Event Listeners de Navegação
+        navCard.addEventListener('click', () => switchView('card'));
+        navEmployees.addEventListener('click', () => switchView('employees'));
+        window.switchToCardEditor = () => switchView('card');
+
+        // --- RENDERIZAÇÃO DA BIBLIOTECA ---
+        function renderEmployees() {
+            employeesList.innerHTML = '';
+            employeeCount.textContent = employees.length;
+            if(employees.length === 0) {
+                employeesList.innerHTML = `<div class="text-center py-10 px-4 border border-dashed border-slate-200 rounded-2xl bg-slate-50"><p class="text-sm text-slate-500 font-medium">Nenhum salvo</p></div>`;
+                return;
+            }
+            employees.forEach((emp, index) => {
+                const div = document.createElement('div');
+                div.className = 'group bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center gap-3 hover:shadow-md hover:border-slate-300 transition-all';
+                const img = emp.photo ? `<img src="${emp.photo}" class="w-10 h-10 rounded-full object-cover border border-slate-100">` : `<div class="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-400">IMG</div>`;
+                div.innerHTML = `${img}<div class="flex-1 min-w-0"><p class="text-sm font-bold text-slate-800 truncate">${emp.name}</p><p class="text-xs text-slate-500 truncate">${emp.role}</p></div><button onclick="window.loadEmployee(${index})" class="p-2 text-slate-400 hover:text-loto-red hover:bg-red-50 rounded-lg"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button><button onclick="window.deleteEmployee(${index})" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>`;
+                employeesList.appendChild(div);
+            });
+        }
+
+        window.loadEmployee = (i) => { createCard({id: nextCardId++, ...employees[i]}); switchView('card'); };
+        window.deleteEmployee = (i) => { 
+            openModal('Remover Colaborador?', 'Deseja remover este colaborador da biblioteca salva?', () => {
+                employees.splice(i, 1); 
+                try{localStorage.setItem('lotoEmployees', JSON.stringify(employees))}catch(e){} 
+                renderEmployees(); 
+            });
+        };
+        
+        btnReset.addEventListener('click', () => { 
+            openModal('Limpar Tudo?', 'Isso apagará todos os cartões da fila. A biblioteca não será afetada.', () => {
+                 cards = []; 
+                 cardsContainer.innerHTML = ''; 
+                 createCard(); 
+            });
+        });
+
+        // Inicialização
+        document.getElementById('employee-count').textContent = employees.length;
+        createCard(); // Cria o primeiro cartão vazio
+    });
+  </script>
+</body>
+</html>
