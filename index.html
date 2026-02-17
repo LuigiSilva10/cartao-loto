@@ -439,7 +439,7 @@
     // Constants
     const LDC_LOGO_HTML = `<div style="display:flex;flex-direction:column;align-items:flex-start;transform-origin:bottom right;"><div style="display:flex;align-items:baseline;line-height:0.8;"><span style="font-family:'Times New Roman',serif;font-size:24px;color:#315575;transform:scaleY(1.1);">LDC</span><span style="width:5px;height:5px;background-color:#55a536;border-radius:50%;margin-left:2px;margin-bottom:2px;"></span></div><span style="font-family:'Inter',sans-serif;font-size:5px;color:#55a536;font-weight:600;margin-top:2px;">Louis Dreyfus Company</span></div>`;
     const ROLES = [
-      'MECÂNICA', 'CALDEIREIRO', 'SOLDADOR'
+      'MECÂNICA', 'CALDEIREIRO', 'SOLDADOR', 'ELETRICISTA'
     ];
 
     // --- SUPABASE SETUP ---
@@ -460,6 +460,7 @@
         isBulkMode: false,
         selectedBulkIds: new Set(),
         currentPreviewId: null,
+        realtimeStatus: 'CONNECTING', // Novo estado para conexão
         expandedQueue: new Set(),
 
         // Modal States
@@ -642,11 +643,29 @@
           panelActionsHtml = '';
         }
         
+        // --- Status Bar (Rodapé) ---
+        const statusColor = this.appState.realtimeStatus === 'CONNECTED' ? 'bg-emerald-500' : (this.appState.realtimeStatus === 'CONNECTING' ? 'bg-amber-500' : 'bg-red-500');
+        const statusLabel = this.appState.realtimeStatus === 'CONNECTED' ? 'Sincronizado' : (this.appState.realtimeStatus === 'CONNECTING' ? 'Conectando...' : 'Desconectado');
+        
+        const statusBarHtml = `
+          <div class="py-3 px-6 border-t border-slate-100 bg-slate-50 flex items-center justify-between shrink-0 transition-colors duration-300">
+            <span class="text-[10px] text-slate-400 font-mono">LotoCard System v1.0</span>
+            <div class="flex items-center gap-2" title="Status da Conexão Realtime">
+              <span class="text-[10px] font-bold ${this.appState.realtimeStatus === 'CONNECTED' ? 'text-emerald-600' : 'text-slate-400'} uppercase tracking-wider transition-colors">${statusLabel}</span>
+              <div class="relative flex h-2.5 w-2.5">
+                ${this.appState.realtimeStatus === 'CONNECTED' ? '<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>' : ''}
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 ${statusColor} transition-colors duration-300"></span>
+              </div>
+            </div>
+          </div>
+        `;
+
         // Render main structure
         sidebarElement.innerHTML = `
           ${panelHeaderHtml}
           <div id="sidebar-content" class="flex-1 overflow-y-auto custom-scroll relative px-2"></div>
           ${panelActionsHtml}
+          ${statusBarHtml}
         `;
 
         // Render content based on current view
@@ -2473,7 +2492,8 @@
               switch (eventType) {
                 case 'INSERT':
                   // Evita adicionar duplicatas se o cliente que originou a ação já o adicionou de forma otimista.
-                  if (!currentEmployees.some(e => e.id === newRecord.id)) {
+                  // Usa == para garantir que string/number IDs sejam comparados corretamente
+                  if (!currentEmployees.some(e => e.id == newRecord.id)) {
                     currentEmployees.unshift(newRecord);
                     changed = true;
                     this.showToast(`Novo colaborador: ${newRecord.name}`, 'pop');
@@ -2481,20 +2501,18 @@
                   break;
 
                 case 'UPDATE':
-                  const indexToUpdate = currentEmployees.findIndex(e => e.id === newRecord.id);
+                  const indexToUpdate = currentEmployees.findIndex(e => e.id == newRecord.id);
                   if (indexToUpdate !== -1) {
-                    // Apenas atualiza se os dados forem realmente diferentes para evitar re-renderizações desnecessárias.
-                    if (JSON.stringify(currentEmployees[indexToUpdate]) !== JSON.stringify(newRecord)) {
-                        currentEmployees[indexToUpdate] = newRecord;
-                        changed = true;
-                    }
+                    // Atualiza o registro
+                    currentEmployees[indexToUpdate] = newRecord;
+                    changed = true;
                   }
                   break;
 
                 case 'DELETE':
                   const idToDelete = oldRecord.id;
                   const initialLength = currentEmployees.length;
-                  currentEmployees = currentEmployees.filter(e => e.id !== idToDelete);
+                  currentEmployees = currentEmployees.filter(e => e.id != idToDelete);
                   if (currentEmployees.length < initialLength) {
                     changed = true;
                   }
@@ -2502,20 +2520,37 @@
               }
 
               if (changed) {
-                const updatedQueue = this.appState.queue.filter(id => currentEmployees.some(e => e.id === id));
-                const updatedRecents = this.appState.recents.filter(id => currentEmployees.some(e => e.id === id));
+                const updatedQueue = this.appState.queue.filter(id => currentEmployees.some(e => e.id == id));
+                const updatedRecents = this.appState.recents.filter(id => currentEmployees.some(e => e.id == id));
                 let updatedPreviewId = this.appState.currentPreviewId;
 
-                if (eventType === 'DELETE' && this.appState.currentPreviewId === oldRecord.id) {
+                if (eventType === 'DELETE' && this.appState.currentPreviewId == oldRecord.id) {
                   updatedPreviewId = updatedQueue.length > 0 ? updatedQueue[updatedQueue.length - 1] : (currentEmployees.length > 0 ? currentEmployees[0].id : null);
-                } else if (updatedPreviewId && !currentEmployees.some(e => e.id === updatedPreviewId)) {
+                } else if (updatedPreviewId && !currentEmployees.some(e => e.id == updatedPreviewId)) {
                   updatedPreviewId = null;
                 }
                 this._updateState({ employees: currentEmployees, queue: updatedQueue, recents: updatedRecents, currentPreviewId: updatedPreviewId });
               }
             }
           )
-          .subscribe();
+          .subscribe((status) => {
+            let newStatus = 'DISCONNECTED';
+            if (status === 'SUBSCRIBED') {
+                newStatus = 'CONNECTED';
+                console.log('Realtime: Conectado e ouvindo alterações.');
+            } else if (status === 'CHANNEL_ERROR') {
+                console.error('Realtime: Erro de conexão.');
+            } else if (status === 'TIMED_OUT') {
+                console.error('Realtime: Tempo limite excedido.');
+            } else {
+                newStatus = 'CONNECTING';
+            }
+            
+            // Atualiza o estado visual apenas se mudou
+            if (this.appState.realtimeStatus !== newStatus) {
+                this._updateState({ realtimeStatus: newStatus });
+            }
+          });
       },
       // --- Initialization ---
       async init() {
