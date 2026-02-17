@@ -720,6 +720,9 @@
                   ${this.appState.employees.length}
                 </span>
               </div>
+              <button id="manual-refresh-btn" class="ml-auto mr-2 text-slate-400 hover:text-loto-red transition-colors p-1" title="Forçar Atualização">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+              </button>
               <button id="delete-all-employees-btn" class="text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-md transition-colors ${this.appState.employees.length === 0 ? 'hidden' : ''}" title="Excluir todos">
                 Excluir Todos
               </button>
@@ -748,6 +751,13 @@
 
         document.getElementById('add-employee-button')?.addEventListener('click', () => this.openNewEmployeeModal());
         document.getElementById('delete-all-employees-btn')?.addEventListener('click', () => this.deleteAllEmployees());
+        document.getElementById('manual-refresh-btn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('manual-refresh-btn');
+            if(btn) btn.classList.add('animate-spin');
+            await this._loadInitialData();
+            this._updateState({ employees: this.appState.employees }); // Força render
+            this.showToast('Lista atualizada', 'pop');
+        });
         
         const handleCardClick = (e) => {
           const target = e.target;
@@ -2476,6 +2486,42 @@
         }, 500);
       },
 
+      startPolling() {
+        // Lógica de "Polling": Atualiza os dados a cada 5 segundos automaticamente
+        console.log('Iniciando sistema de atualização automática (Polling)...');
+        setInterval(async () => {
+            // Se a aba não estiver visível, não faz a requisição para economizar recursos
+            if (document.hidden) return;
+
+            const { data: remoteEmployees, error } = await supabaseClient
+                .from('employees')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error || !remoteEmployees) return;
+
+            // Compara os dados atuais com os novos (usando JSON stringify para comparação profunda simples)
+            const localJson = JSON.stringify(this.appState.employees);
+            const remoteJson = JSON.stringify(remoteEmployees);
+
+            if (localJson !== remoteJson) {
+                console.log('Polling: Diferenças encontradas. Sincronizando...');
+                
+                // Garante integridade dos IDs selecionados (caso alguém tenha excluído um item)
+                const remoteIds = new Set(remoteEmployees.map(e => e.id));
+                const updatedQueue = this.appState.queue.filter(id => remoteIds.has(id));
+                const updatedRecents = this.appState.recents.filter(id => remoteIds.has(id));
+                let updatedPreviewId = this.appState.currentPreviewId;
+                
+                if (updatedPreviewId && !remoteIds.has(updatedPreviewId)) {
+                    updatedPreviewId = null;
+                }
+
+                this._updateState({ employees: remoteEmployees, queue: updatedQueue, recents: updatedRecents, currentPreviewId: updatedPreviewId });
+            }
+        }, 5000); // 5000ms = 5 segundos
+      },
+
       listenForRealtimeChanges() {
         const channel = supabaseClient
           .channel('employees-db-changes')
@@ -2574,6 +2620,9 @@
 
         // Inicia a escuta por atualizações em tempo real
         this.listenForRealtimeChanges();
+        
+        // Inicia a atualização automática (Polling) como garantia
+        this.startPolling();
 
         this.setupDraggableToggle();
 
