@@ -12,9 +12,6 @@
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
-  <!-- Supabase Client -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
   <!-- Cropper.js (For image cropping) -->
   <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
   
@@ -211,6 +208,20 @@
   </style>
 </head>
 <body class="bg-slate-100 text-slate-800 antialiased h-screen flex flex-row overflow-hidden selection:bg-loto-red selection:text-white">
+  <!-- Print Progress Overlay -->
+  <div id="print-progress-overlay" class="fixed inset-x-0 top-0 z-[200] hidden transition-all duration-300">
+    <div class="bg-slate-900 text-white py-3 px-6 shadow-2xl flex items-center justify-between border-b border-slate-700">
+      <div class="flex items-center gap-3">
+        <div class="animate-spin rounded-full h-4 w-4 border-2 border-loto-red border-t-transparent"></div>
+        <span id="print-status-text" class="text-xs font-bold uppercase tracking-widest text-slate-300">Preparando documentos...</span>
+      </div>
+      <span id="print-progress-percent" class="text-xs font-mono font-bold text-loto-red">0%</span>
+    </div>
+    <div class="h-1.5 w-full bg-slate-800">
+      <div id="print-progress-bar" class="h-full bg-gradient-to-r from-loto-red to-orange-500 transition-all duration-100 ease-out shadow-[0_0_10px_#D81E05]" style="width: 0%"></div>
+    </div>
+  </div>
+
   <div id="app-container" class="bg-slate-100 text-slate-800 antialiased h-screen flex flex-row overflow-hidden selection:bg-loto-red selection:text-white w-full">
     <nav id="navbar" class="w-[96px] bg-slate-900 flex flex-col items-center py-8 gap-6 z-30 flex-shrink-0 shadow-2xl"></nav>
     <aside id="sidebar" class="w-full md:w-[420px] flex-shrink-0 bg-white/80 backdrop-blur-xl border-r border-white/50 flex flex-col overflow-hidden z-20 h-full shadow-[4px_0_24px_rgba(0,0,0,0.02)]"></aside>
@@ -420,25 +431,31 @@
     </div>
   </div>
 
+  <!-- Supabase Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
   <script>
-    // --- Configuração do Supabase ---
-    // Substitua pelos seus dados do Supabase.
-    const SUPABASE_URL = 'https://vissrgwlfhryubnplwdi.supabase.co'; 
-    const SUPABASE_ANON_KEY = 'sb_publishable_pbDzrkwuBncAMKLzxKtOgg_R8p4z3_n'; 
-    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
     // Constants
     const LDC_LOGO_HTML = `<div style="display:flex;flex-direction:column;align-items:flex-start;transform-origin:bottom right;"><div style="display:flex;align-items:baseline;line-height:0.8;"><span style="font-family:'Times New Roman',serif;font-size:24px;color:#315575;transform:scaleY(1.1);">LDC</span><span style="width:5px;height:5px;background-color:#55a536;border-radius:50%;margin-left:2px;margin-bottom:2px;"></span></div><span style="font-family:'Inter',sans-serif;font-size:5px;color:#55a536;font-weight:600;margin-top:2px;">Louis Dreyfus Company</span></div>`;
     const ROLES = [
       'MECÂNICA', 'CALDEIREIRO', 'SOLDADOR'
     ];
 
+    // --- SUPABASE SETUP ---
+    // Substitua com suas próprias credenciais do Supabase
+    const SUPABASE_URL = 'https://vissrgwlfhryubnplwdi.supabase.co'; 
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpc3NyZ3dsZmhyeXVibnBsd2RpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxMjY4NjIsImV4cCI6MjA4NTcwMjg2Mn0.5cNDllbaxwrJtqwnLMZc4IrVbJsh12tJfoCwmfR1fbk';
+
+    let supabaseClient; // Declarado mas não inicializado ainda
+
     // Global App State
     const app = {
       appState: {
+        isLoading: true,
         employees: [],
         queue: [],
+        recents: [],
         currentView: 'employees', // 'employees' | 'gallery' | 'card'
         isBulkMode: false,
         selectedBulkIds: new Set(),
@@ -464,28 +481,42 @@
       // --- State Management Helpers ---
       _updateState(newState, shouldRender = true) {
         Object.assign(this.appState, newState);
-        // A persistência agora é tratada diretamente nas funções de CRUD (save, delete, etc.)
         if (shouldRender) this.renderApp(); // Re-render the relevant parts of the UI
       },
-
-      async _loadEmployeesFromSupabase() {
-        const { data, error } = await supabase
-            .from('employees')
-            .select('*')
-            .order('created_at', { ascending: false });
+      
+      async _saveRecents() {
+        const { error } = await supabaseClient
+          .from('settings')
+          .upsert({ key: 'recents', value: { recents: this.appState.recents } });
 
         if (error) {
-            console.error('Erro ao carregar colaboradores:', error);
-            this.showAlert('Erro de Conexão', 'Não foi possível carregar os dados do banco de dados. Verifique sua conexão e as configurações do Supabase.');
-            this.appState.employees = [];
-        } else {
-            // Supabase pode retornar JSON como string, então garantimos que seja um objeto.
-            const employees = data.map(emp => ({
-                ...emp,
-                logoSettings: typeof emp.logoSettings === 'string' ? JSON.parse(emp.logoSettings) : emp.logoSettings
-            }));
-            this.appState.employees = employees;
+          console.error('Erro ao salvar recentes:', error);
+          // Falha silenciosa: Não exibir toast de erro para não interromper o fluxo do usuário
         }
+      },
+
+      async _loadInitialData() {
+        // Fetch employees
+        const { data: employees, error: employeesError } = await supabaseClient
+          .from('employees')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (employeesError) {
+          console.error('Erro ao carregar colaboradores:', employeesError);
+          this.showAlert('Erro de Conexão', 'Não foi possível carregar os dados dos colaboradores. Verifique sua conexão e as configurações do Supabase.');
+          return;
+        }
+        this.appState.employees = employees || [];
+
+        // Fetch recents
+        const { data: recentsSetting, error: recentsError } = await supabaseClient
+          .from('settings')
+          .select('value')
+          .eq('key', 'recents')
+          .single();
+        
+        this.appState.recents = recentsSetting?.value?.recents || [];
       },
 
       // --- UI Rendering Functions ---
@@ -536,6 +567,7 @@
             ${getNavButtonHtml('employees', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', 'Equipe')}
             ${getNavButtonHtml('gallery', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>', 'Galeria')}
             ${getNavButtonHtml('card', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>', 'Fila')}
+            ${getNavButtonHtml('history', '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', 'Histórico')}
           </div>
         `;
 
@@ -566,11 +598,16 @@
           description = 'Gerencie fotos e cadastros.';
           tagText = 'Acervo';
           tagClasses = 'bg-emerald-100 text-emerald-700 border-emerald-200';
-        } else { // 'card' view (queue)
+        } else if (this.appState.currentView === 'card') { // 'card' view (queue)
           title = 'Fila de Impressão';
           description = 'Revise antes de imprimir.';
           tagText = 'Impressão';
           tagClasses = 'bg-amber-100 text-amber-700 border-amber-200';
+        } else { // 'history' view
+          title = 'Histórico';
+          description = 'Colaboradores acessados recentemente.';
+          tagText = 'Recentes';
+          tagClasses = 'bg-cyan-100 text-cyan-700 border-cyan-200';
         }
 
         const panelHeaderHtml = `
@@ -615,12 +652,28 @@
         // Render content based on current view
         const sidebarContentElement = document.getElementById('sidebar-content');
         if (sidebarContentElement) {
-          if (this.appState.currentView === 'employees') {
-            this.renderEmployeesTabContent(sidebarContentElement);
-          } else if (this.appState.currentView === 'gallery') {
-            this.renderGalleryTabContent(sidebarContentElement);
-          } else if (this.appState.currentView === 'card') {
-            this.renderGeneratorTabContent(sidebarContentElement);
+          if (this.appState.isLoading) {
+            sidebarContentElement.innerHTML = `
+              <div class="flex items-center justify-center h-full p-10 animate-fade-in">
+                <div class="flex flex-col items-center gap-4">
+                  <svg class="animate-spin h-8 w-8 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span class="text-sm font-medium text-slate-500">Carregando colaboradores...</span>
+                </div>
+              </div>
+            `;
+          } else {
+            if (this.appState.currentView === 'employees') {
+              this.renderEmployeesTabContent(sidebarContentElement);
+            } else if (this.appState.currentView === 'gallery') {
+              this.renderGalleryTabContent(sidebarContentElement);
+            } else if (this.appState.currentView === 'card') {
+              this.renderGeneratorTabContent(sidebarContentElement);
+            } else if (this.appState.currentView === 'history') {
+              this.renderHistoryTabContent(sidebarContentElement);
+            }
           }
         }
 
@@ -633,7 +686,7 @@
       renderEmployeesTabContent(container) {
         let employeesHtml = '';
         if (this.appState.employees.length === 0) {
-          employeesHtml = `<div class="col-span-2 text-center text-xs text-slate-400 py-4">Vazio</div>`;
+          employeesHtml = `<div class="col-span-full text-center text-xs text-slate-400 py-4">Vazio</div>`;
         } else {
           employeesHtml = this.appState.employees.map(e => this.getEmployeeCardHtml(e)).join('');
         }
@@ -676,7 +729,8 @@
 
         document.getElementById('add-employee-button')?.addEventListener('click', () => this.openNewEmployeeModal());
         document.getElementById('delete-all-employees-btn')?.addEventListener('click', () => this.deleteAllEmployees());
-        document.getElementById('employee-cards-grid')?.addEventListener('click', (e) => {
+        
+        const handleCardClick = (e) => {
           const target = e.target;
           const employeeCard = target.closest('.shelf-card');
           if (employeeCard) {
@@ -691,7 +745,9 @@
               }
             }
           }
-        });
+        };
+
+        document.getElementById('employee-cards-grid')?.addEventListener('click', handleCardClick);
       },
 
       renderGalleryTabContent(container) {
@@ -817,26 +873,81 @@
         });
       },
 
+      renderHistoryTabContent(container) {
+        const recentEmployees = this.appState.recents
+            .map(id => this.appState.employees.find(e => e.id === id))
+            .filter(e => e);
+
+        let historyHtml = '';
+        if (recentEmployees.length === 0) {
+            historyHtml = `
+                <div class="text-center py-12 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 mb-3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <p class="text-sm text-slate-500 font-medium">Nenhum item recente</p>
+                    <p class="text-xs text-slate-400 mt-1">Adicione ou edite colaboradores para vê-los aqui.</p>
+                </div>
+            `;
+        } else {
+            historyHtml = recentEmployees.map(e => this.getEmployeeCardHtml(e)).join('');
+        }
+
+        container.innerHTML = `
+            <div class="animate-in fade-in px-6 pb-6 min-h-full">
+                <div class="flex justify-between items-center mb-6 sticky top-0 bg-white/90 backdrop-blur-md py-3 z-10 -mx-2 px-2 rounded-xl">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Visualizando Recentes</span>
+                        <span class="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-bold border border-slate-200">
+                            ${recentEmployees.length}
+                        </span>
+                    </div>
+                    <button id="clear-recents-btn" class="text-[10px] font-bold text-red-400 hover:text-red-600 hover:bg-red-50 px-2 py-1 rounded-md transition-colors ${recentEmployees.length === 0 ? 'hidden' : ''}" title="Limpar Histórico">
+                        Limpar
+                    </button>
+                </div>
+                <div id="history-cards-grid" class="grid grid-cols-1 gap-3 pb-8">
+                    ${historyHtml}
+                </div>
+            </div>
+        `;
+
+        document.getElementById('clear-recents-btn')?.addEventListener('click', () => this.clearRecents());
+
+        document.getElementById('history-cards-grid')?.addEventListener('click', (e) => {
+            const target = e.target;
+            const employeeCard = target.closest('.shelf-card');
+            if (employeeCard) {
+                const id = parseInt(employeeCard.dataset.id);
+                if (!isNaN(id)) {
+                    if (target.closest('.delete-button')) this.deleteEmployee(id);
+                    else if (target.closest('.edit-button')) this.openNewEmployeeModal(id);
+                    else this.toggleQueue(id);
+                }
+            }
+        });
+      },
+
       renderPreviewPanel() {
         const panelElement = document.getElementById('preview-panel');
         if (!panelElement) return;
 
         const employee = this.appState.currentPreviewId ? this.appState.employees.find(e => e.id === this.appState.currentPreviewId) : null;
         const isThirdParty = employee?.isThirdParty && employee?.companyLogo;
+        const isLocked = employee?.logoSettings?.locked || false;
 
         let thirdPartyControls = '';
         if (isThirdParty) {
             thirdPartyControls = `
-                <div class="flex items-center gap-3 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-md border border-slate-200 animate-fade-in">
+                <div class="flex items-center gap-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full shadow-md border border-slate-200 animate-fade-in">
                     <div class="flex items-center gap-1.5 text-slate-500">
                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
                         <span class="text-[10px] font-bold uppercase tracking-wider">Logo</span>
                     </div>
-                    <input type="range" id="logo-size-slider" min="30" max="200" value="85" class="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-loto-red hover:accent-loto-darkRed transition-all">
-                    <span id="logo-size-value" class="text-[10px] font-bold text-slate-700 min-w-[30px] text-right">85px</span>
-                    <div class="w-px h-3 bg-slate-200 mx-1"></div>
-                    <button id="save-logo-pos-btn" class="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 p-1.5 rounded-full transition-colors" title="Confirmar e Salvar">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    <div class="w-px h-3 bg-slate-300"></div>
+                    <button id="toggle-logo-lock" class="text-slate-400 hover:text-loto-red transition-colors p-1" title="${isLocked ? 'Destravar Logo' : 'Travar Logo'}">
+                        ${isLocked 
+                            ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-loto-red"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>` 
+                            : `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>`
+                        }
                     </button>
                 </div>
             `;
@@ -947,36 +1058,50 @@
         // --- LOGIC FOR LOGO DRAG & RESIZE (MODERN) ---
         const logoContainer = panelElement.querySelector('.logo-container-absolute');
         const logoWrapper = panelElement.querySelector('.logo-resizable-wrapper');
-        const sizeSlider = document.getElementById('logo-size-slider');
-        const sizeValue = document.getElementById('logo-size-value');
         
         if (logoContainer && logoWrapper && employee?.isThirdParty) {
-          // Initialize Slider
-          if (sizeSlider) {
-            const currentWidth = parseInt(logoWrapper.style.width) || 85;
-            sizeSlider.value = currentWidth;
-            if (sizeValue) sizeValue.textContent = currentWidth + 'px';
+          // Criar as 4 alças de redimensionamento (Handles)
+          const handles = ['nw', 'ne', 'sw', 'se'];
+          const handleElements = {};
 
-            sizeSlider.addEventListener('input', (e) => {
-              const newWidth = e.target.value;
-              logoWrapper.style.width = `${newWidth}px`;
-              logoWrapper.style.height = 'auto'; // Maintain aspect ratio
-              if (sizeValue) sizeValue.textContent = newWidth + 'px';
-              
-              // Sync mirrors
-              const sidebarMirrorsWrapper = document.querySelectorAll(`.queue-item-wrapper[data-id="${employee.id}"] .logo-resizable-wrapper`);
-              sidebarMirrorsWrapper.forEach(mirrorWrapper => {
-                mirrorWrapper.style.width = `${newWidth}px`;
-                mirrorWrapper.style.height = 'auto';
-              });
+          handles.forEach(dir => {
+            const h = document.createElement('div');
+            h.className = `resize-handle ${dir}`;
+            h.style.cssText = `
+                width: 10px; height: 10px;
+                background-color: white;
+                border: 1px solid #D81E05;
+                border-radius: 50%;
+                position: absolute;
+                z-index: 50;
+                display: none;
+            `;
+            
+            // Posicionamento específico
+            if (dir.includes('n')) h.style.top = '-5px'; else h.style.bottom = '-5px';
+            if (dir.includes('w')) h.style.left = '-5px'; else h.style.right = '-5px';
+            
+            // Cursor
+            h.style.cursor = `${dir}-resize`;
+            
+            logoContainer.appendChild(h);
+            handleElements[dir] = h;
+          });
 
-              // Save
-              app.saveLogoSettings(employee.id, {
-                top: logoContainer.style.top,
-                left: logoContainer.style.left,
-                width: `${newWidth}px`,
-                height: 'auto'
-              });
+          // Lock Button Logic
+          const lockBtn = document.getElementById('toggle-logo-lock');
+          if (lockBtn) {
+            lockBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // FIX: Buscar o colaborador mais recente do estado para garantir que temos as coordenadas atualizadas após o arrasto
+                const latestEmployee = app.appState.employees.find(e => e.id === employee.id) || employee;
+                const currentSettings = latestEmployee.logoSettings || { top: 'auto', left: 'auto', width: '85px', height: 'auto' };
+                const newLockedState = !currentSettings.locked;
+                
+                app.saveLogoSettings(employee.id, { ...currentSettings, locked: newLockedState });
+                app.renderPreviewPanel(); // Re-render to update icon and state
+                
+                app.showToast(newLockedState ? 'Logo travado.' : 'Logo destravado.', 'pop');
             });
           }
 
@@ -1000,34 +1125,56 @@
           }
 
           // Drag Logic
-          logoContainer.style.cursor = 'move';
-          logoContainer.title = "Arraste para mover";
+          if (isLocked) {
+            logoContainer.style.cursor = 'default';
+            logoContainer.title = "Logo travado (Clique no cadeado para editar)";
+          } else {
+            logoContainer.style.cursor = 'move';
+            logoContainer.title = "Arraste para mover";
+          }
           
           // Visual hover effect
           logoContainer.addEventListener('mouseenter', () => {
-             logoContainer.style.outline = '1px dashed #D81E05';
+             if (employee?.logoSettings?.locked) return; // Don't show handles if locked
+             logoContainer.style.outline = '1px dashed #D81E05'; 
+             Object.values(handleElements).forEach(h => h.style.display = 'block');
           });
           logoContainer.addEventListener('mouseleave', () => {
              logoContainer.style.outline = 'none';
+             Object.values(handleElements).forEach(h => h.style.display = 'none');
           });
 
           let isDragging = false;
           let isResizing = false;
-          let startX, startY, startLeft, startTop, startWidth;
+          let resizeDir = ''; // 'nw', 'ne', 'sw', 'se'
+          let startX, startY, startLeft, startTop, startWidth, startHeight, aspectRatio;
 
           const onMouseDown = (e) => {
             e.stopPropagation(); // Prevent preview pan
             e.preventDefault();
-            startX = e.clientX;
-            startY = e.clientY;
+
+            if (employee?.logoSettings?.locked) {
+                app.showToast('Logo travado. Clique no cadeado para editar.', 'error');
+                return;
+            }
             
-            if (e.detail === 2) {
+            // Verifica se clicou em uma alça
+            if (e.target.classList.contains('resize-handle')) {
                 isResizing = true;
                 isDragging = false;
+                resizeDir = e.target.classList.contains('nw') ? 'nw' : 
+                            e.target.classList.contains('ne') ? 'ne' :
+                            e.target.classList.contains('sw') ? 'sw' : 'se';
+                
                 startWidth = parseInt(logoWrapper.style.width, 10) || logoWrapper.offsetWidth;
-                logoContainer.style.cursor = 'ew-resize';
-                document.body.style.cursor = 'ew-resize'; // Força cursor globalmente
-                app.showToast('Arrastando para redimensionar...', 'pop');
+                startHeight = logoWrapper.offsetHeight;
+                aspectRatio = startWidth / startHeight;
+                
+                // Captura posições iniciais para cálculos de Top/Left
+                startLeft = parseFloat(logoContainer.style.left) || logoContainer.offsetLeft;
+                startTop = parseFloat(logoContainer.style.top) || logoContainer.offsetTop;
+
+                document.body.style.cursor = e.target.style.cursor;
             } else {
                 isDragging = true;
                 isResizing = false;
@@ -1042,10 +1189,13 @@
 
                 startLeft = parseFloat(logoContainer.style.left);
                 startTop = parseFloat(logoContainer.style.top);
-                
+
                 logoContainer.style.cursor = 'grabbing';
                 document.body.style.cursor = 'grabbing';
             }
+
+            startX = e.clientX;
+            startY = e.clientY;
           };
 
           const onMouseMove = (e) => {
@@ -1077,20 +1227,47 @@
                   mirror.style.right = 'auto';
                 });
             } else if (isResizing) {
-                const newWidth = Math.max(30, Math.min(200, startWidth + dx));
+                let newWidth = startWidth;
+                let newLeft = startLeft;
+                let newTop = startTop;
+
+                // Lógica para cada canto
+                if (resizeDir === 'se') {
+                    newWidth = startWidth + dx;
+                } else if (resizeDir === 'sw') {
+                    newWidth = startWidth - dx;
+                    newLeft = startLeft + dx;
+                } else if (resizeDir === 'ne') {
+                    newWidth = startWidth + dx;
+                    // Ajustar Top baseado na mudança de altura (mantendo aspect ratio)
+                    const newHeight = newWidth / aspectRatio;
+                    newTop = startTop - (newHeight - startHeight);
+                } else if (resizeDir === 'nw') {
+                    newWidth = startWidth - dx;
+                    newLeft = startLeft + dx;
+                    const newHeight = newWidth / aspectRatio;
+                    newTop = startTop - (newHeight - startHeight);
+                }
+
+                // Limites
+                newWidth = Math.max(30, Math.min(300, newWidth));
                 
                 logoWrapper.style.width = `${newWidth}px`;
                 logoWrapper.style.height = 'auto';
-                
-                // Update Slider
-                if (sizeSlider) sizeSlider.value = newWidth;
-                if (sizeValue) sizeValue.textContent = `${Math.round(newWidth)}px`;
+                logoContainer.style.left = `${newLeft}px`;
+                logoContainer.style.top = `${newTop}px`;
 
                 // Sync mirrors
                 const sidebarMirrorsWrapper = document.querySelectorAll(`.queue-item-wrapper[data-id="${employee.id}"] .logo-resizable-wrapper`);
                 sidebarMirrorsWrapper.forEach(mirrorWrapper => {
                     mirrorWrapper.style.width = `${newWidth}px`;
                     mirrorWrapper.style.height = 'auto';
+                });
+                
+                const sidebarMirrorsContainer = document.querySelectorAll(`.queue-item-wrapper[data-id="${employee.id}"] .logo-container-absolute`);
+                sidebarMirrorsContainer.forEach(mirror => {
+                    mirror.style.left = `${newLeft}px`;
+                    mirror.style.top = `${newTop}px`;
                 });
             }
           };
@@ -1708,34 +1885,104 @@
         }
       },
 
+      _addToRecents(id) {
+        let newRecents = [id, ...this.appState.recents.filter(rId => rId !== id)];
+        if (newRecents.length > 15) newRecents = newRecents.slice(0, 15); // Keep last 15
+        this._updateState({ recents: newRecents }, false);
+      },
+
+      async _uploadBase64(base64, bucket, path) {
+        try {
+            const response = await fetch(base64);
+            const blob = await response.blob();
+            
+            let { data, error } = await supabaseClient.storage
+              .from(bucket)
+              .upload(path, blob, {
+                contentType: blob.type,
+                upsert: true,
+              });
+
+            // Tratamento automático: Se o bucket não existir, tenta criar
+            if (error && (error.message.includes('Bucket not found') || error.statusCode === '404')) {
+                console.warn(`Bucket '${bucket}' não encontrado. Tentando criar automaticamente...`);
+                const { error: createError } = await supabaseClient.storage.createBucket(bucket, {
+                    public: true,
+                    fileSizeLimit: 10485760, // 10MB
+                    allowedMimeTypes: ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+                });
+
+                if (createError) {
+                    console.error('Falha ao criar bucket:', createError);
+                    // Mensagem específica para erro de permissão (RLS)
+                    if (createError.message && createError.message.includes('policy')) {
+                        return { url: null, error: { message: `Permissão negada. Vá ao Supabase > Storage e crie o bucket '${bucket}' como 'Public'.` } };
+                    }
+                    return { url: null, error: { message: `Bucket '${bucket}' não encontrado. Crie-o manualmente no painel do Supabase.` } };
+                }
+
+                // Tenta o upload novamente
+                const retry = await supabaseClient.storage.from(bucket).upload(path, blob, { contentType: blob.type, upsert: true });
+                data = retry.data;
+                error = retry.error;
+            }
+
+            if (error) {
+                // Tratamento específico para erro de permissão (RLS)
+                if (error.message && error.message.includes('row-level security policy')) {
+                    return { url: null, error: { message: `Permissão negada: Habilite 'INSERT' nas Policies do bucket '${bucket}' no Supabase.` } };
+                }
+                throw error;
+            }
+
+            const { data: { publicUrl } } = supabaseClient.storage.from(bucket).getPublicUrl(path);
+            return { url: publicUrl, error: null };
+        } catch (error) {
+            console.error(`Erro no upload de base64 para ${bucket}:`, error);
+            return { url: null, error };
+        }
+      },
+
       async saveNewEmployee() {
         const nameInput = document.getElementById('modal-input-name');
         const roleSelect = document.getElementById('modal-input-role');
         const name = nameInput ? nameInput.value.trim().toUpperCase() : '';
         const role = roleSelect ? roleSelect.value : 'MECÂNICA';
-        const photo = this.appState.tempPhoto;
         const isThirdParty = this.appState.isThirdParty;
-        const companyLogo = this.appState.tempCompanyLogo;
 
         if (!name) {
           this.showAlert('Campo Obrigatório', 'Por favor, insira o nome do colaborador.');
           return;
         }
 
+        this.showToast('Salvando...', 'pop');
+
+        // 1. MODO SIMPLIFICADO: Salvar Base64 direto no Banco (Sem Storage/Bucket)
+        // Isso elimina a necessidade de configurar Buckets e Policies no Supabase.
+        // A imagem é salva como texto diretamente na coluna 'photo' e 'companyLogo'.
+        const photoUrl = this.appState.tempPhoto;
+        const logoUrl = this.appState.tempCompanyLogo;
+
         const employeeData = {
             name,
             role,
-            sector: 'Manutenção',
-            photo,
+            sector: 'MANUTENÇÃO',
+            photo: photoUrl,
             isThirdParty,
-            companyLogo,
+            companyLogo: logoUrl,
         };
 
         if (this.appState.editingEmployeeId) {
             employeeData.id = this.appState.editingEmployeeId;
+            const existingEmployee = this.appState.employees.find(e => e.id === employeeData.id);
+            // Preserve existing logo settings if they exist
+            if (existingEmployee?.logoSettings) {
+                employeeData.logoSettings = existingEmployee.logoSettings;
+            }
         }
 
-        const { data, error } = await supabase
+        // 3. Upsert employee data to Supabase
+        const { data: savedEmployee, error } = await supabaseClient
             .from('employees')
             .upsert(employeeData)
             .select()
@@ -1743,35 +1990,49 @@
 
         if (error) {
             console.error('Erro ao salvar colaborador:', error);
-            this.showAlert('Erro ao Salvar', 'Não foi possível salvar o colaborador no banco de dados.');
+            this.showToast('Erro ao salvar no banco de dados.', 'error');
             return;
         }
 
-        if (data) {
-            const savedEmployee = data;
-            let newEmployees = [...this.appState.employees];
-            const existingIndex = newEmployees.findIndex(e => e.id === savedEmployee.id);
-
-            if (existingIndex > -1) {
-                newEmployees[existingIndex] = savedEmployee;
-            } else {
-                newEmployees.unshift(savedEmployee);
-            }
-            this._updateState({ employees: newEmployees });
-            this.closeNewEmployeeModal();
-            this.showToast(this.appState.editingEmployeeId ? 'Colaborador atualizado!' : 'Colaborador adicionado!', 'success');
-        }
+        // 4. Update local state
+        let newEmployees = [...this.appState.employees];
+        const existingIndex = newEmployees.findIndex(e => e.id === savedEmployee.id);
+        if (existingIndex > -1) newEmployees[existingIndex] = savedEmployee;
+        else newEmployees.unshift(savedEmployee);
+        
+        this._updateState({ employees: newEmployees });
+        this.closeNewEmployeeModal();
+        this.showToast(this.appState.editingEmployeeId ? 'Colaborador atualizado!' : 'Colaborador adicionado!', 'success');
       },
 
       deleteEmployee(id) {
         this.confirmAction('Remover Colaborador?', 'Esta ação é permanente e não poderá ser desfeita.', async () => {
-          const { error } = await supabase.from('employees').delete().eq('id', id);
+          const employeeToDelete = this.appState.employees.find(e => e.id === id);
+          if (!employeeToDelete) return;
+
+          // Delete from Supabase DB
+          const { error } = await supabaseClient.from('employees').delete().eq('id', id);
           if (error) {
-            this.showAlert('Erro ao Remover', 'Não foi possível remover o colaborador do banco de dados.');
+            console.error('Erro ao excluir colaborador:', error);
+            this.showToast('Erro ao excluir do banco de dados.', 'error');
             return;
           }
-          const updatedEmployees = this.appState.employees.filter(e => e.id !== id);
+
+          // Delete images from Supabase Storage
+          const filesToDelete = [];
+          if (employeeToDelete.photo) {
+            const photoPath = employeeToDelete.photo.split('/avatars/')[1];
+            if (photoPath) filesToDelete.push(photoPath);
+          }
+          if (employeeToDelete.companyLogo) {
+            const logoPath = employeeToDelete.companyLogo.split('/avatars/')[1];
+            if (logoPath) filesToDelete.push(logoPath);
+          }
+          if (filesToDelete.length > 0) await supabaseClient.storage.from('avatars').remove(filesToDelete);
+
+          // Update local state
           const updatedQueue = this.appState.queue.filter(qid => qid !== id);
+          const updatedRecents = this.appState.recents.filter(rid => rid !== id);
           let newPreviewId = this.appState.currentPreviewId;
 
           if (newPreviewId === id) {
@@ -1782,27 +2043,34 @@
             }
           }
           this._updateState({
-            employees: updatedEmployees,
+            employees: this.appState.employees.filter(e => e.id !== id),
             queue: updatedQueue,
+            recents: updatedRecents,
             currentPreviewId: newPreviewId
           });
           this.showToast('Colaborador removido.', 'pop');
+          this._saveRecents();
         });
       },
 
       deleteAllEmployees() {
         this.confirmAction('Excluir Todos?', 'Tem certeza que deseja remover todos os colaboradores? Esta ação não pode ser desfeita.', async () => {
-          const { error } = await supabase.from('employees').delete().neq('id', 0); // Deleta todas as linhas
+          // Delete all rows from the table
+          const { error } = await supabaseClient.from('employees').delete().neq('id', -1); // Deletes all rows
           if (error) {
-            this.showAlert('Erro ao Excluir', 'Não foi possível remover todos os colaboradores.');
+            this.showToast('Erro ao excluir todos os colaboradores.', 'error');
+            console.error(error);
             return;
           }
+          // Note: This does not delete files from storage. That would require listing all files and deleting them.
+
           this._updateState({
             employees: [],
             queue: [],
+            recents: [],
             currentPreviewId: null,
             expandedQueue: new Set(),
-            selectedBulkIds: new Set()
+            selectedBulkIds: new Set(),
           });
           this.showToast('Todos os colaboradores foram removidos.', 'pop');
         });
@@ -1923,6 +2191,14 @@
         });
       },
 
+      clearRecents() {
+        this.confirmAction('Limpar Histórico?', 'Isso removerá a lista de colaboradores recentes, mas não os excluirá da equipe.', async () => {
+          this._updateState({ recents: [] });
+          await this._saveRecents();
+          this.showToast('Histórico limpo.', 'pop');
+        });
+      },
+
       toggleExpand(id) {
         const newExpanded = new Set(this.appState.expandedQueue);
         if (newExpanded.has(id)) {
@@ -1956,16 +2232,39 @@
 
       deleteBulk() {
         if (this.appState.selectedBulkIds.size === 0) return;
-        this.confirmAction('Excluir Itens?', `Deseja apagar ${this.appState.selectedBulkIds.size} colaboradores selecionados?`, async () => {
-          const idsToDelete = Array.from(this.appState.selectedBulkIds);
-          const { error } = await supabase.from('employees').delete().in('id', idsToDelete);
+        const idsToDelete = Array.from(this.appState.selectedBulkIds);
+        this.confirmAction('Excluir Itens?', `Deseja apagar ${idsToDelete.length} colaboradores selecionados?`, async () => {
+          // 1. Find files to delete before deleting the database records
+          const employeesToDelete = this.appState.employees.filter(e => idsToDelete.includes(e.id));
+          const filesToDelete = [];
+          employeesToDelete.forEach(employee => {
+            if (employee.photo) {
+              const photoPath = employee.photo.split('/avatars/')[1];
+              if (photoPath) filesToDelete.push(photoPath);
+            }
+            if (employee.companyLogo) {
+              const logoPath = employee.companyLogo.split('/avatars/')[1];
+              if (logoPath) filesToDelete.push(logoPath);
+            }
+          });
+
+          // 2. Delete from Supabase DB
+          const { error } = await supabaseClient.from('employees').delete().in('id', idsToDelete);
           if (error) {
-            this.showAlert('Erro ao Excluir', 'Não foi possível remover os colaboradores selecionados.');
+            this.showToast('Erro ao excluir itens.', 'error');
+            console.error(error);
             return;
           }
+          
+          // 3. Delete files from Supabase Storage
+          if (filesToDelete.length > 0) {
+            await supabaseClient.storage.from('avatars').remove(filesToDelete);
+          }
 
+          // 4. Update local state
           const updatedEmployees = this.appState.employees.filter(e => !this.appState.selectedBulkIds.has(e.id));
           const updatedQueue = this.appState.queue.filter(qid => !this.appState.selectedBulkIds.has(qid));
+          const updatedRecents = this.appState.recents.filter(rid => !this.appState.selectedBulkIds.has(rid));
           let newPreviewId = this.appState.currentPreviewId;
 
           if (newPreviewId && this.appState.selectedBulkIds.has(newPreviewId)) {
@@ -1975,9 +2274,10 @@
               newPreviewId = null;
             }
           }
-          this._updateState({ employees: updatedEmployees, queue: updatedQueue, currentPreviewId: newPreviewId });
+          this._updateState({ employees: updatedEmployees, queue: updatedQueue, recents: updatedRecents, currentPreviewId: newPreviewId, selectedBulkIds: new Set() });
           this.toggleBulkMode(); // Exit bulk mode after deletion
-          this.showToast(`${this.appState.selectedBulkIds.size} itens excluídos.`, 'pop');
+          this.showToast(`${idsToDelete.length} itens excluídos.`, 'pop');
+          this._saveRecents();
         });
       },
 
@@ -1986,21 +2286,47 @@
       },
       
       async saveLogoSettings(id, settings) {
-        const { error } = await supabase
-            .from('employees')
-            .update({ logoSettings: settings })
-            .eq('id', id);
-
-        if (error) {
-            console.error('Erro ao salvar configurações do logo:', error);
-            this.showToast('Erro ao salvar logo', 'error');
-            return;
-        }
-
+        // Atualiza estado local primeiro (UI otimista)
         const employees = this.appState.employees.map(e => 
           e.id === id ? { ...e, logoSettings: settings } : e
         );
         this._updateState({ employees }, false);
+
+        // Save to Supabase in the background
+        const { error } = await supabaseClient
+          .from('employees')
+          .update({ logoSettings: settings })
+          .eq('id', id);
+
+        if (error) this.showToast('Erro ao salvar posição do logo.', 'error');
+      },
+
+      // Função auxiliar para atualizar a barra de progresso
+      async _simulatePrintProgress(start, end, duration, message) {
+        const bar = document.getElementById('print-progress-bar');
+        const percentText = document.getElementById('print-progress-percent');
+        const statusText = document.getElementById('print-status-text');
+        
+        if (message) statusText.textContent = message;
+        
+        const stepTime = 20;
+        const steps = duration / stepTime;
+        const increment = (end - start) / steps;
+        
+        let current = start;
+        
+        return new Promise(resolve => {
+            const timer = setInterval(() => {
+                current += increment;
+                if (current >= end) {
+                    current = end;
+                    clearInterval(timer);
+                    resolve();
+                }
+                bar.style.width = `${current}%`;
+                percentText.textContent = `${Math.round(current)}%`;
+            }, stepTime);
+        });
       },
 
       async printQueue() {
@@ -2009,10 +2335,22 @@
         }
         if (this.appState.queue.length === 0) return;
 
+        // Adicionar itens da fila aos recentes (Histórico de Impressão)
+        this.appState.queue.forEach(id => {
+            this._addToRecents(id);
+        });
+        this._saveRecents();
+
+        // 1. Iniciar Interface de Progresso
+        const overlay = document.getElementById('print-progress-overlay');
+        overlay.classList.remove('hidden');
+        
+        // Simula etapa 1: Processando dados
+        await this._simulatePrintProgress(0, 30, 600, "Processando dados dos colaboradores...");
+
         const area = document.getElementById('print-batch-area');
         if (!area) return;
         area.innerHTML = '';
-
         const selectedEmployees = this.appState.queue.map(id => this.appState.employees.find(e => e.id === id)).filter(e => e);
         const pairs = [];
         for (let i = 0; i < selectedEmployees.length; i += 2) pairs.push(selectedEmployees.slice(i, i + 2));
@@ -2070,20 +2408,138 @@
         });
         area.innerHTML = html;
 
+        // Simula etapa 2: Gerando Layout
+        await this._simulatePrintProgress(30, 60, 500, "Gerando layout de impressão...");
+
         // Wait for images to load before printing
         const imgs = [...area.querySelectorAll('img')];
-        await Promise.all(imgs.map(img => {
+        const imagePromises = imgs.map(img => {
           if (img.complete) return Promise.resolve();
           return new Promise(r => { img.onload = r; img.onerror = r; });
-        }));
+        });
 
-        setTimeout(() => window.print(), 300);
+        // Simula etapa 3: Carregando Imagens (enquanto espera de verdade)
+        await Promise.all([
+            Promise.all(imagePromises),
+            this._simulatePrintProgress(60, 90, 800, "Otimizando imagens de alta resolução...")
+        ]);
+
+        // Finalização
+        await this._simulatePrintProgress(90, 100, 300, "Enviando para a impressora...");
+
+        // Pequeno delay para o usuário ver o 100%
+        setTimeout(() => {
+            overlay.classList.add('hidden');
+            
+            // Configura o evento para depois da impressão
+            const afterPrintHandler = () => {
+                // Remove o listener para não duplicar
+                window.removeEventListener('afterprint', afterPrintHandler); // Standard
+                
+                // Pergunta se deu certo
+                setTimeout(() => {
+                    this.confirmAction('Impressão Concluída?', 'Os cartões foram impressos corretamente? Se sim, a fila será limpa.', () => {
+                        this._updateState({ queue: [], currentPreviewId: null, expandedQueue: new Set() });
+                        this.showToast('Fila de impressão finalizada.', 'success');
+                    });
+                }, 500);
+            };
+
+            // Tenta capturar o fechamento da janela de impressão
+            window.addEventListener('afterprint', afterPrintHandler);
+            
+            // Abre a janela de impressão
+            window.print();
+            
+            // Fallback para navegadores que não suportam afterprint perfeitamente (opcional, mas seguro)
+            // Em alguns casos o script continua rodando imediatamente, então o modal apareceria "atrás" do dialog de print.
+            // O afterprint é o método mais correto.
+        }, 500);
       },
 
+      listenForRealtimeChanges() {
+        const channel = supabaseClient
+          .channel('employees-db-changes')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'employees' },
+            (payload) => {
+              console.log('Realtime change received!', payload);
+              const { eventType, new: newRecord, old: oldRecord } = payload;
+
+              let currentEmployees = [...this.appState.employees];
+              let changed = false;
+
+              switch (eventType) {
+                case 'INSERT':
+                  // Evita adicionar duplicatas se o cliente que originou a ação já o adicionou de forma otimista.
+                  if (!currentEmployees.some(e => e.id === newRecord.id)) {
+                    currentEmployees.unshift(newRecord);
+                    changed = true;
+                    this.showToast(`Novo colaborador: ${newRecord.name}`, 'pop');
+                  }
+                  break;
+
+                case 'UPDATE':
+                  const indexToUpdate = currentEmployees.findIndex(e => e.id === newRecord.id);
+                  if (indexToUpdate !== -1) {
+                    // Apenas atualiza se os dados forem realmente diferentes para evitar re-renderizações desnecessárias.
+                    if (JSON.stringify(currentEmployees[indexToUpdate]) !== JSON.stringify(newRecord)) {
+                        currentEmployees[indexToUpdate] = newRecord;
+                        changed = true;
+                    }
+                  }
+                  break;
+
+                case 'DELETE':
+                  const idToDelete = oldRecord.id;
+                  const initialLength = currentEmployees.length;
+                  currentEmployees = currentEmployees.filter(e => e.id !== idToDelete);
+                  if (currentEmployees.length < initialLength) {
+                    changed = true;
+                  }
+                  break;
+              }
+
+              if (changed) {
+                const updatedQueue = this.appState.queue.filter(id => currentEmployees.some(e => e.id === id));
+                const updatedRecents = this.appState.recents.filter(id => currentEmployees.some(e => e.id === id));
+                let updatedPreviewId = this.appState.currentPreviewId;
+
+                if (eventType === 'DELETE' && this.appState.currentPreviewId === oldRecord.id) {
+                  updatedPreviewId = updatedQueue.length > 0 ? updatedQueue[updatedQueue.length - 1] : (currentEmployees.length > 0 ? currentEmployees[0].id : null);
+                } else if (updatedPreviewId && !currentEmployees.some(e => e.id === updatedPreviewId)) {
+                  updatedPreviewId = null;
+                }
+                this._updateState({ employees: currentEmployees, queue: updatedQueue, recents: updatedRecents, currentPreviewId: updatedPreviewId });
+              }
+            }
+          )
+          .subscribe();
+      },
       // --- Initialization ---
       async init() {
-        await this._loadEmployeesFromSupabase();
+        if (SUPABASE_URL === 'SEU_SUPABASE_URL' || SUPABASE_ANON_KEY === 'SUA_SUPABASE_ANON_KEY') {
+          this.showAlert('Configuração Incompleta', 'Por favor, adicione sua URL e Chave anônima do Supabase no código para começar.');
+          this._updateState({ isLoading: false });
+          return;
+        }
+
+        // Inicializa o cliente Supabase somente se as credenciais forem válidas
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // Render the app immediately. Since isLoading is true by default, it will show the loader.
         this.renderApp();
+
+        // Now, load the data in the background.
+        await this._loadInitialData();
+        
+        // Data is loaded, update state to remove loader and show content.
+        this._updateState({ isLoading: false });
+
+        // Inicia a escuta por atualizações em tempo real
+        this.listenForRealtimeChanges();
+
         this.setupDraggableToggle();
 
         // Attach event listeners for NewEmployeeModal form submission
