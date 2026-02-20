@@ -236,8 +236,8 @@
       <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity" onclick="app.closeNewEmployeeModal()"></div>
       <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
         <div class="flex min-h-full items-center justify-center p-4">
-          <div class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-md animate-scale-in">
-            <div class="bg-slate-900 px-4 py-4 sm:px-6 flex items-center justify-between">
+          <div class="relative transform rounded-2xl bg-white text-left shadow-2xl transition-all w-full max-w-md animate-scale-in overflow-visible">
+            <div class="bg-slate-900 px-4 py-4 sm:px-6 flex items-center justify-between rounded-t-2xl">
               <h3 id="new-employee-modal-title" class="text-base font-semibold leading-6 text-white">Adicionar à Equipe</h3>
               <button onclick="app.closeNewEmployeeModal()" class="text-slate-400 hover:text-white">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -282,13 +282,21 @@
                   />
                 </div>
                 <div>
-                  <label htmlFor="modal-input-role" class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Função</label>
-                  <div class="relative">
-                    <select
-                      id="modal-input-role"
-                      class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 outline-none appearance-none focus:border-loto-red focus:ring-1 focus:ring-loto-red/20 transition-all cursor-pointer"
-                    ></select>
-                    <div class="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none text-slate-500"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+                  <!-- New Role Selection UI -->
+                  <div class="relative z-30">
+                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Função</label>
+                    <div class="relative">
+                      <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-4 w-4 text-slate-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                      </div>
+                      <input type="text" id="role-search-input" class="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-loto-red focus:ring-1 focus:ring-loto-red transition-all uppercase placeholder:normal-case" placeholder="Buscar ou criar..." autocomplete="off" />
+                      <div class="absolute inset-y-0 right-0 pr-2 flex items-center gap-1">
+                        <button type="button" id="clear-role-btn" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors hidden" title="Limpar"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+                        <button type="button" id="toggle-role-dropdown-btn" class="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded-full transition-colors" title="Expandir"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+                      </div>
+                    </div>
+                    <div id="role-dropdown-menu" class="absolute left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-slate-100 max-h-48 overflow-y-auto custom-scroll hidden animate-fade-in origin-top transform transition-all z-[60]"></div>
+                    <input type="hidden" id="modal-selected-role">
                   </div>
                 </div>
               </div>
@@ -324,7 +332,7 @@
                 </div>
               </div>
             </div>
-            <div class="bg-slate-50 px-6 py-4 flex flex-row-reverse gap-3">
+            <div class="bg-slate-50 px-6 py-4 flex flex-row-reverse gap-3 rounded-b-2xl">
               <button
                 id="modal-save-employee-button"
                 type="button"
@@ -438,7 +446,7 @@
   <script>
     // Constants
     const LDC_LOGO_HTML = `<div style="display:flex;flex-direction:column;align-items:flex-start;transform-origin:bottom right;"><div style="display:flex;align-items:baseline;line-height:0.8;"><span style="font-family:'Times New Roman',serif;font-size:24px;color:#315575;transform:scaleY(1.1);">LDC</span><span style="width:5px;height:5px;background-color:#55a536;border-radius:50%;margin-left:2px;margin-bottom:2px;"></span></div><span style="font-family:'Inter',sans-serif;font-size:5px;color:#55a536;font-weight:600;margin-top:2px;">Louis Dreyfus Company</span></div>`;
-    const ROLES = [
+    const DEFAULT_ROLES = [
       'MECÂNICA', 'CALDEIREIRO', 'SOLDADOR', 'ELETRICISTA'
     ];
 
@@ -455,6 +463,7 @@
         isLoading: true,
         employees: [],
         queue: [],
+        roles: [],
         recents: [],
         currentView: 'employees', // 'employees' | 'gallery' | 'card'
         isBulkMode: false,
@@ -497,6 +506,16 @@
         }
       },
 
+      async _saveRoles() {
+        const { error } = await supabaseClient
+          .from('settings')
+          .upsert({ key: 'roles', value: { roles: this.appState.roles } });
+
+        if (error) {
+          console.error('Erro ao salvar funções:', error);
+        }
+      },
+
       async _loadInitialData() {
         // Fetch employees
         const { data: employees, error: employeesError } = await supabaseClient
@@ -519,6 +538,15 @@
           .single();
         
         this.appState.recents = recentsSetting?.value?.recents || [];
+
+        // Fetch roles
+        const { data: rolesSetting, error: rolesError } = await supabaseClient
+          .from('settings')
+          .select('value')
+          .eq('key', 'roles')
+          .single();
+        
+        this.appState.roles = rolesSetting?.value?.roles || DEFAULT_ROLES;
       },
 
       // --- UI Rendering Functions ---
@@ -1788,6 +1816,127 @@
         img.src = imageSrc;
       },
 
+      // --- New Role Dropdown Logic ---
+      setupRoleDropdown() {
+        const input = document.getElementById('role-search-input');
+        const dropdown = document.getElementById('role-dropdown-menu');
+        const toggleBtn = document.getElementById('toggle-role-dropdown-btn');
+        const clearBtn = document.getElementById('clear-role-btn');
+        
+        if (!input || !dropdown) return;
+
+        const openDropdown = () => {
+            dropdown.classList.remove('hidden');
+            this.renderRoleDropdown(input.value);
+        };
+
+        input.addEventListener('focus', openDropdown);
+        input.addEventListener('input', (e) => {
+            this.renderRoleDropdown(e.target.value);
+            if (e.target.value) clearBtn.classList.remove('hidden');
+            else clearBtn.classList.add('hidden');
+        });
+
+        toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (dropdown.classList.contains('hidden')) {
+                input.focus();
+            } else {
+                dropdown.classList.add('hidden');
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            input.value = '';
+            document.getElementById('modal-selected-role').value = '';
+            clearBtn.classList.add('hidden');
+            input.focus();
+            this.renderRoleDropdown('');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!input.contains(e.target) && !dropdown.contains(e.target) && !toggleBtn.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+      },
+
+      renderRoleDropdown(filterText = '') {
+        const dropdown = document.getElementById('role-dropdown-menu');
+        if (!dropdown) return;
+
+        const normalizedFilter = filterText.trim().toUpperCase();
+        const filteredRoles = this.appState.roles.filter(r => r.includes(normalizedFilter));
+        const exactMatch = this.appState.roles.includes(normalizedFilter);
+
+        let html = '';
+
+        if (normalizedFilter && !exactMatch) {
+            html += `
+                <div onclick="app.addNewRole('${normalizedFilter}')" class="px-4 py-3 text-sm text-loto-red font-bold hover:bg-red-50 cursor-pointer flex items-center gap-2 border-b border-slate-50">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    Criar "${normalizedFilter}"
+                </div>
+            `;
+        }
+
+        if (filteredRoles.length === 0 && !normalizedFilter) {
+             html += `<div class="px-4 py-3 text-xs text-slate-400 text-center">Nenhuma função encontrada</div>`;
+        }
+
+        filteredRoles.forEach(role => {
+            html += `
+                <div class="group flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 cursor-pointer transition-colors" onclick="app.selectRole('${role}')">
+                    <span class="text-sm font-bold text-slate-700">${role}</span>
+                    <button onclick="event.stopPropagation(); app.deleteRole('${role}')" class="text-slate-300 hover:text-red-500 p-1 opacity-0 group-hover:opacity-100 transition-all" title="Remover Função">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            `;
+        });
+
+        dropdown.innerHTML = html;
+      },
+
+      selectRole(role) {
+        const input = document.getElementById('role-search-input');
+        const hiddenInput = document.getElementById('modal-selected-role');
+        const dropdown = document.getElementById('role-dropdown-menu');
+        const clearBtn = document.getElementById('clear-role-btn');
+
+        if (input && hiddenInput) {
+            input.value = role;
+            hiddenInput.value = role;
+            if (dropdown) dropdown.classList.add('hidden');
+            if (clearBtn) clearBtn.classList.remove('hidden');
+        }
+      },
+
+      addNewRole(newRole) {
+        if (!newRole) return;
+
+        if (!this.appState.roles.includes(newRole)) {
+          this._updateState({ roles: [...this.appState.roles, newRole] }, false);
+          this._saveRoles();
+          this.showToast(`Função "${newRole}" criada!`, 'success');
+        }
+        this.selectRole(newRole);
+      },
+
+      deleteRole(role) {
+        const newRoles = this.appState.roles.filter(r => r !== role);
+        this._updateState({ roles: newRoles }, false);
+        this._saveRoles();
+        
+        const selectedInput = document.getElementById('modal-selected-role');
+        const searchInput = document.getElementById('role-search-input');
+        if (selectedInput && selectedInput.value === role) {
+            selectedInput.value = '';
+            if (searchInput) searchInput.value = '';
+        }
+        this.renderRoleDropdown(searchInput ? searchInput.value : '');
+      },
+
       openNewEmployeeModal(id = null) {
         const employee = id ? this.appState.employees.find(e => e.id === id) : null;
         this._updateState({
@@ -1803,7 +1952,6 @@
         // Sync initial form values
         const modalTitle = document.getElementById('new-employee-modal-title');
         const nameInput = document.getElementById('modal-input-name');
-        const roleSelect = document.getElementById('modal-input-role');
         const isThirdPartyInput = document.getElementById('modal-input-is-third-party');
         const fileInputPhoto = document.getElementById('file-input-temp-photo');
         const fileInputLogo = document.getElementById('file-input-company-logo');
@@ -1811,10 +1959,14 @@
         if (modalTitle) modalTitle.textContent = id ? 'Editar Colaborador' : 'Adicionar à Equipe';
         if (nameInput) nameInput.value = employee ? employee.name : '';
         
-        if (roleSelect) {
-          roleSelect.innerHTML = ROLES.map(r => `<option value="${r}" ${employee?.role === r ? 'selected' : ''}>${r}</option>`).join('');
-          roleSelect.value = employee ? employee.role : 'MECÂNICA';
-        }
+        // Setup Roles
+        const selectedRoleInput = document.getElementById('modal-selected-role');
+        const searchInput = document.getElementById('role-search-input');
+        const initialRole = employee ? employee.role : '';
+        
+        if (selectedRoleInput) selectedRoleInput.value = initialRole;
+        if (searchInput) searchInput.value = initialRole;
+        if (document.getElementById('clear-role-btn')) document.getElementById('clear-role-btn').classList.toggle('hidden', !initialRole);
         
         // Sync Third Party UI
         if (isThirdPartyInput) {
@@ -2004,9 +2156,9 @@
 
       async saveNewEmployee() {
         const nameInput = document.getElementById('modal-input-name');
-        const roleSelect = document.getElementById('modal-input-role');
+        const roleInput = document.getElementById('modal-selected-role');
         const name = nameInput ? nameInput.value.trim().toUpperCase() : '';
-        const role = roleSelect ? roleSelect.value : 'MECÂNICA';
+        const role = roleInput ? roleInput.value : 'MECÂNICA';
         const isThirdParty = this.appState.isThirdParty;
 
         if (!name) {
@@ -2655,6 +2807,7 @@
         this.startPolling();
 
         this.setupDraggableToggle();
+        this.setupRoleDropdown();
 
         // Attach event listeners for NewEmployeeModal form submission
         document.getElementById('modal-save-employee-button')?.addEventListener('click', () => this.saveNewEmployee());
